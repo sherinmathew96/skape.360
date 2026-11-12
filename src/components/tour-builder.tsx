@@ -60,7 +60,7 @@ export function TourBuilder({ projectId, tour }: { projectId: string; tour: Tour
       if (!alive) return;
       instance = new Viewer({
         container: el,
-        panorama: `/api/files/${selected.fileId}`,
+        panorama: `/api/files/${selected.fileId}?w=4096`,
         navbar: ["zoom", "move", "fullscreen"],
         defaultZoomLvl: 0,
         loadingTxt: "",

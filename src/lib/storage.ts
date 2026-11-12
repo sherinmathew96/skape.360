@@ -1,6 +1,6 @@
 import "server-only";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -112,11 +112,73 @@ export async function writeLocal(key: string, body: WebReadableStream<Uint8Array
   return seen;
 }
 
+async function readStored(key: string): Promise<Buffer> {
+  if (storageDriver() === "local") return readFile(localPath(key));
+  const { client, mod, bucket } = await s3();
+  const out = await client.send(new mod.GetObjectCommand({ Bucket: bucket, Key: key }));
+  return Buffer.from(await out.Body!.transformToByteArray());
+}
+
+async function writeStored(key: string, body: Buffer, contentType: string) {
+  if (storageDriver() === "local") {
+    const target = localPath(key);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, body);
+    return;
+  }
+  const { client, mod, bucket } = await s3();
+  await client.send(new mod.PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
+}
+
+/** The widths an image may be asked for, so only a few copies are ever made. */
+export const IMAGE_WIDTHS = [2048, 4096, 8192] as const;
+
+/** `?w=4096` on a file link, when it is one of the allowed widths. */
+export function requestedWidth(req: Request): number | undefined {
+  const w = Number(new URL(req.url).searchParams.get("w"));
+  return (IMAGE_WIDTHS as readonly number[]).includes(w) ? w : undefined;
+}
+
+/**
+ * A copy of a large image no wider than `width`, made once and kept beside
+ * the original. Phones can't open very large 360° photos: they run out of
+ * memory, or the picture is wider than the graphics chip can show. Returns
+ * null when the original is already small enough.
+ */
+async function fittedImage(file: { storageKey: string; name: string; contentType: string; id?: string }, width: number) {
+  const key = `derived/w${width}/${file.storageKey}.jpg`;
+  const copy = { storageKey: key, name: file.name.replace(/\.[^.]+$/, "") + `-${width}.jpg`, contentType: "image/jpeg" };
+  const known = await storedSize(key);
+  if (known !== null) return known > 0 ? { ...copy, size: known } : null;
+
+  const sharp = (await import("sharp")).default;
+  const original = await readStored(file.storageKey);
+  const image = sharp(original, { limitInputPixels: 30000 * 15000 });
+  const meta = await image.metadata();
+  if (!meta.width || meta.width <= width) {
+    // Remember that this one needs no copy, so it isn't decoded again.
+    await writeStored(key, Buffer.alloc(0), "image/jpeg");
+    return null;
+  }
+  const body = await image.rotate().resize({ width, withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  await writeStored(key, body, "image/jpeg");
+  return { ...copy, size: body.length };
+}
+
 /**
  * A response that serves the file: a redirect to a short-lived R2 link, or
- * the bytes from disk.
+ * the bytes from disk. With `width`, an image is served no wider than that.
  */
-export async function serveFile(file: { storageKey: string; name: string; contentType: string; size: number }) {
+export async function serveFile(file: { storageKey: string; name: string; contentType: string; size: number }, opts: { width?: number } = {}) {
+  if (opts.width && file.contentType.startsWith("image/")) {
+    try {
+      const fitted = await fittedImage(file, opts.width);
+      if (fitted) return serveFile(fitted);
+    } catch (err) {
+      // A copy that can't be made should not stop the original from showing.
+      console.warn("[skape360] could not resize image:", err instanceof Error ? err.message : err);
+    }
+  }
   const disposition = `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`;
 
   if (storageDriver() === "r2") {

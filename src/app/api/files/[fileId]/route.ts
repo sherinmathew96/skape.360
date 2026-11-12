@@ -2,10 +2,10 @@ import { getUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
 import { can } from "@/lib/permissions";
 import { getReadyFile } from "@/lib/share";
-import { serveFile } from "@/lib/storage";
+import { requestedWidth, serveFile } from "@/lib/storage";
 
 /** A file for signed-in staff who can see its project. */
-export async function GET(_: Request, { params }: { params: Promise<{ fileId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ fileId: string }> }) {
   const user = await getUser();
   if (!user) return new Response("Sign in first", { status: 401 });
 
@@ -23,5 +23,5 @@ export async function GET(_: Request, { params }: { params: Promise<{ fileId: st
   if (!file || !allowed) {
     return new Response("Not found", { status: 404 });
   }
-  return serveFile(file);
+  return serveFile(file, { width: requestedWidth(req) });
 }
