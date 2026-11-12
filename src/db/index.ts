@@ -22,21 +22,26 @@ async function connect(): Promise<Db> {
 
   // USE_LOCAL_DB=1 forces the embedded database, e.g. for testing without touching real data.
   if (url && !process.env.USE_LOCAL_DB) {
-    const { default: postgres } = await import("postgres");
-    const { drizzle } = await import("drizzle-orm/postgres-js");
-    // prepare:false keeps Supabase's transaction pooler happy.
-    // Vercel pauses the function between visits and the pooler drops idle
-    // connections meanwhile; a query sent down such a dead connection hangs
-    // until the network gives up. So close connections soon after use, never
-    // keep one long, and fail fast if a new one can't be opened.
-    const client = postgres(url, {
-      prepare: false,
+    const { Pool } = await import("pg");
+    const { drizzle } = await import("drizzle-orm/node-postgres");
+    const { attachDatabasePool } = await import("@vercel/functions");
+    // Vercel pauses the function between visits and Supabase's pooler drops
+    // idle connections meanwhile; a query sent down such a dead connection
+    // hangs or fails. Idle connections close after 5 s, and on Vercel
+    // attachDatabasePool keeps the function awake until they have, so a
+    // paused function never holds one. Unnamed queries suit the
+    // transaction pooler (no prepared statements).
+    const pool = new Pool({
+      connectionString: url,
       max: 5,
-      idle_timeout: 5,
-      max_lifetime: 60 * 5,
-      connect_timeout: 10,
+      idleTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 10_000,
+      maxLifetimeSeconds: 60 * 5,
     });
-    return drizzle(client, { schema }) as unknown as Db;
+    // A connection dropped while idle must not crash the process.
+    pool.on("error", (err) => console.warn("[skape360] idle database connection closed:", err.message));
+    attachDatabasePool(pool);
+    return drizzle(pool, { schema }) as unknown as Db;
   }
 
   if (process.env.NODE_ENV === "production" && !process.env.ALLOW_LOCAL_DB) {
