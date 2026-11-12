@@ -1,22 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Box,
-  Camera,
-  Maximize2,
-  Minimize2,
-  Minus,
-  Pause,
-  Play,
-  Plus,
-  Ruler,
-  RotateCcw,
-  RotateCw,
-  SlidersHorizontal,
-  Undo2,
-  X,
-} from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Box, Camera, Maximize2, Minimize2, Pause, Play, Plus, RotateCcw, RotateCw, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView } from "@/db/schema";
 import { skyUrl } from "@/lib/sky";
 
@@ -35,6 +20,8 @@ type MV = HTMLElement & {
   fieldOfView: string;
   maxCameraOrbit: string;
   minFieldOfView: string;
+  canActivateAR: boolean;
+  activateAR(): void;
   getCameraOrbit(): { theta: number; phi: number; radius: number };
   getDimensions(): { x: number; y: number; z: number };
   jumpCameraToGoal(): void;
@@ -51,12 +38,10 @@ const VIEWS: { id: ViewName; label: string; theta: number; phi: number }[] = [
   { id: "left", label: "Left", theta: -90, phi: 90 },
   { id: "top", label: "Top", theta: 0, phi: 0.01 },
 ];
-const LIGHTS: { id: Lighting; label: string }[] = [
-  { id: "daylight", label: "Daylight" },
-  { id: "overcast", label: "Overcast" },
-  { id: "evening", label: "Evening" },
-  { id: "studio", label: "Studio" },
-];
+/** One light for every model: soft daylight. */
+const LIGHTING = "daylight" satisfies Lighting;
+/** The camera stops at the horizon, so nobody sees the underside of a model. */
+const MAX_PHI = "90deg";
 /** Narrow lens used for "flat" elevations: close to an orthographic drawing. */
 const FLAT_FOV = 5;
 
@@ -73,9 +58,10 @@ export type ViewerApi = {
 };
 
 /**
- * The 3D viewer: preset elevation views (with a flat, drawing-like option),
- * orbit and zoom controls, auto-rotate, lighting and exposure, real
- * dimensions, a saved image, and full screen. Designed for clients on phones.
+ * The 3D viewer on a white ground: drag to turn, pinch to zoom. Everything
+ * else (preset elevation views with a flat, drawing-like option, turning,
+ * zoom, auto-rotate, a saved image, full screen, AR) sits behind one +
+ * button so the model has the whole frame. Designed for clients on phones.
  */
 export function ModelViewer({
   src,
@@ -93,7 +79,7 @@ export function ModelViewer({
   onApi?: (api: ViewerApi) => void;
 }) {
   const ref = useRef<MV>(null);
-  const wrap = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   const [ready, setReady] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -101,13 +87,13 @@ export function ModelViewer({
   const [current, setCurrent] = useState<ViewName>("3d");
   const [flat, setFlat] = useState(false);
   const [spinning, setSpinning] = useState(false);
-  const [lighting, setLighting] = useState<Lighting>(view.lighting ?? "daylight");
-  const [exposure, setExposure] = useState(view.exposure ?? 1);
-  const [shadows, setShadows] = useState(true);
   const [envUrl, setEnvUrl] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"look" | "size" | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [canAR, setCanAR] = useState(false);
   const [full, setFull] = useState(false);
   const [dims, setDims] = useState<{ x: number; y: number; z: number } | null>(null);
+  const lighting = LIGHTING;
+  const exposure = view.exposure ?? 1;
   const front = view.frontYaw ?? 0;
 
   useEffect(() => {
@@ -115,8 +101,8 @@ export function ModelViewer({
     import("@google/model-viewer").then(() => {
       // Compressed (optimised) models need the meshopt decoder switched on. The
       // viewer loads it from this address; it is served by the app itself.
-      const MV = customElements.get("model-viewer") as unknown as { meshoptDecoderLocation: string } | undefined;
-      if (MV) MV.meshoptDecoderLocation = "/vendor/meshopt_decoder.js";
+      const MVClass = customElements.get("model-viewer") as unknown as { meshoptDecoderLocation: string } | undefined;
+      if (MVClass) MVClass.meshoptDecoderLocation = "/vendor/meshopt_decoder.js";
       if (alive) setReady(true);
     });
     return () => {
@@ -124,10 +110,10 @@ export function ModelViewer({
     };
   }, []);
 
-  // Lighting: the drawn skies are made once, in the browser.
+  // The daylight sky is drawn once, in the browser.
   useEffect(() => {
     let alive = true;
-    if (lighting !== "studio") skyUrl(lighting).then((u) => alive && setEnvUrl(u));
+    skyUrl(lighting).then((u) => alive && setEnvUrl(u));
     return () => {
       alive = false;
     };
@@ -140,6 +126,7 @@ export function ModelViewer({
     const onLoad = () => {
       setLoaded(true);
       setDims(el.getDimensions());
+      setCanAR(Boolean(el.canActivateAR));
     };
     const onError = () => setFailed(true);
     el.addEventListener("progress", onProgress);
@@ -162,7 +149,7 @@ export function ModelViewer({
       setSpinning(false);
       // The saved opening view: its own camera and framing.
       if (name === "3d" && view.opening && !flatMode) {
-        el.maxCameraOrbit = "Infinity 180deg auto";
+        el.maxCameraOrbit = `Infinity ${MAX_PHI} auto`;
         el.minFieldOfView = "10deg";
         el.fieldOfView = "auto";
         (el as unknown as { cameraTarget: string }).cameraTarget = view.opening.target;
@@ -179,11 +166,11 @@ export function ModelViewer({
         const half = Math.max(h / 2, w / 2 / aspect) * 1.12;
         const radius = half / Math.tan(((FLAT_FOV / 2) * Math.PI) / 180) + depth / 2;
         el.minFieldOfView = "1deg";
-        el.maxCameraOrbit = `Infinity 180deg ${radius * 1.6}m`;
+        el.maxCameraOrbit = `Infinity ${MAX_PHI} ${radius * 1.6}m`;
         el.fieldOfView = `${FLAT_FOV}deg`;
         el.cameraOrbit = `${v.theta + front}deg ${v.phi}deg ${radius}m`;
       } else {
-        el.maxCameraOrbit = "Infinity 180deg auto";
+        el.maxCameraOrbit = `Infinity ${MAX_PHI} auto`;
         el.minFieldOfView = "10deg";
         el.fieldOfView = "auto";
         el.cameraOrbit = `${v.theta + front}deg ${v.phi}deg auto`;
@@ -234,6 +221,18 @@ export function ModelViewer({
     });
   }, [onApi, snapshot, lighting, exposure]);
 
+  // Escape closes the menu first, then full screen.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      setMenu(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [menu]);
+
   // Full screen as a fixed layer: works on iPhones too, where the Fullscreen API doesn't.
   useEffect(() => {
     if (!full) return;
@@ -256,13 +255,12 @@ export function ModelViewer({
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  const tool = "flex h-10 w-10 items-center justify-center rounded-md text-[#141414] transition-colors hover:bg-[#ececec] disabled:opacity-40";
-  const fmt = (m: number) => `${m < 10 ? m.toFixed(2) : m.toFixed(1)} m`;
+  const item =
+    "flex h-11 items-center gap-2.5 rounded-lg px-3 text-left text-sm text-text transition-colors hover:bg-active hover:text-primary";
 
   return (
     <div
-      ref={wrap}
-      className={`${full ? "fixed inset-0 z-50 h-dvh w-screen" : `relative ${className}`} @container overflow-hidden bg-[#e9e7e3]`}
+      className={`${full ? "fixed inset-0 z-50 h-dvh w-screen" : `relative ${className}`} @container overflow-hidden bg-white`}
       role="region"
       aria-label={`${title}, 3D model`}
     >
@@ -278,12 +276,13 @@ export function ModelViewer({
           touch-action="pan-y"
           interaction-prompt="none"
           min-camera-orbit="auto 0deg auto"
+          max-camera-orbit={`Infinity ${MAX_PHI} auto`}
           interpolation-decay="90"
-          shadow-intensity={shadows ? "1" : "0"}
+          shadow-intensity="1"
           shadow-softness="0.85"
           exposure={String(exposure)}
           tone-mapping="neutral"
-          environment-image={lighting === "studio" || !envUrl ? "neutral" : envUrl}
+          environment-image={envUrl ?? "neutral"}
           auto-rotate={spinning ? "" : undefined}
           auto-rotate-delay="0"
           rotation-per-second="14deg"
@@ -292,13 +291,8 @@ export function ModelViewer({
           style={{ width: "100%", height: "100%", background: "transparent", ["--poster-color" as string]: "transparent" } as React.CSSProperties}
         >
           <div slot="progress-bar" />
-          <button
-            slot="ar-button"
-            type="button"
-            className="absolute left-3 top-3 flex h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-[#141414] shadow-sm"
-          >
-            <Box size={16} strokeWidth={1.5} aria-hidden="true" /> View in your room
-          </button>
+          {/* AR starts from the menu instead of the viewer's own button. */}
+          <span slot="ar-button" hidden />
         </model-viewer>
       ) : null}
 
@@ -307,72 +301,45 @@ export function ModelViewer({
           This model could not be loaded.
         </p>
       ) : !loaded ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/5" role="progressbar" aria-label="Loading model" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/5"
+          role="progressbar"
+          aria-label="Loading model"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+        >
           <div className="h-full bg-stage transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
         </div>
       ) : null}
 
       {loaded ? (
-        <>
-          {/* Right: one toolbar. On narrow viewers (phones, small embeds) only what fingers can't do. */}
-          <div className="absolute right-2 top-2 flex flex-col gap-0.5 rounded-lg bg-white p-1 shadow-sm" role="toolbar" aria-label="Camera and tools" aria-orientation="vertical">
-            <button type="button" className={`${tool} @max-md:hidden`} aria-label="Turn left" title="Turn left" onClick={() => rotate(-45)}>
-              <RotateCcw size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={`${tool} @max-md:hidden`} aria-label="Turn right" title="Turn right" onClick={() => rotate(45)}>
-              <RotateCw size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={`${tool} ${spinning ? "bg-[#141414] text-white hover:bg-[#2e2e2e]" : ""}`}
-              aria-label={spinning ? "Stop turning" : "Turn slowly"}
-              aria-pressed={spinning}
-              title={spinning ? "Stop turning" : "Turn slowly"}
-              onClick={() => setSpinning((x) => !x)}
+        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
+          {menu ? (
+            <div
+              id={menuId}
+              className="max-h-[calc(100cqh-84px)] w-[min(300px,calc(100cqw-24px))] overflow-y-auto rounded-2xl border border-border bg-white p-3 shadow-[0_12px_40px_rgba(41,45,50,0.16)]"
+              role="group"
+              aria-label="Views and tools"
             >
-              {spinning ? <Pause size={18} strokeWidth={1.5} aria-hidden="true" /> : <Play size={18} strokeWidth={1.5} aria-hidden="true" />}
-            </button>
-            <span className="mx-2 my-0.5 h-px bg-[#e6e6e6] @max-md:hidden" aria-hidden="true" />
-            <button type="button" className={`${tool} @max-md:hidden`} aria-label="Zoom in" title="Zoom in" onClick={() => ref.current?.zoom(10)}>
-              <Plus size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={`${tool} @max-md:hidden`} aria-label="Zoom out" title="Zoom out" onClick={() => ref.current?.zoom(-10)}>
-              <Minus size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={tool} aria-label="Reset the view" title="Reset the view" onClick={() => goTo("3d", false)}>
-              <Undo2 size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <span className="mx-2 my-0.5 h-px bg-[#e6e6e6]" aria-hidden="true" />
-            <button type="button" className={`${tool} ${panel === "look" ? "bg-[#ececec]" : ""}`} aria-label="Lighting" aria-expanded={panel === "look"} title="Lighting" onClick={() => setPanel(panel === "look" ? null : "look")}>
-              <SlidersHorizontal size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={`${tool} ${panel === "size" ? "bg-[#ececec]" : ""}`} aria-label="Size" aria-expanded={panel === "size"} title="Size" onClick={() => setPanel(panel === "size" ? null : "size")}>
-              <Ruler size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={tool} aria-label="Save this view as an image" title="Save this view as an image" onClick={saveImage}>
-              <Camera size={18} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button type="button" className={tool} aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen" : "Full screen"} onClick={() => setFull((x) => !x)}>
-              {full ? <Minimize2 size={18} strokeWidth={1.5} aria-hidden="true" /> : <Maximize2 size={18} strokeWidth={1.5} aria-hidden="true" />}
-            </button>
-          </div>
-
-          {/* Bottom: preset views and flat elevations, scrolling sideways when narrow */}
-          <div className="absolute bottom-2 left-2 right-2 flex @md:right-auto">
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-lg bg-white p-1 shadow-sm" role="toolbar" aria-label="Views">
-              {VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  aria-pressed={current === v.id}
-                  onClick={() => goTo(v.id)}
-                  className={`h-9 flex-none rounded-md px-3 text-sm ${current === v.id ? "bg-[#141414] font-medium text-white" : "text-[#141414] hover:bg-[#ececec]"}`}
-                >
-                  {v.label}
-                </button>
-              ))}
-              <span className="mx-1 h-6 w-px flex-none bg-[#e6e6e6]" aria-hidden="true" />
-              <label className="flex h-9 flex-none cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-[#141414] hover:bg-[#ececec]" title="Elevations without perspective, like a drawing">
+              <p className="px-1 pb-2 text-xs font-medium text-muted">Views</p>
+              <div className="grid grid-cols-3 gap-1" role="toolbar" aria-label="Views">
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    aria-pressed={current === v.id}
+                    onClick={() => goTo(v.id)}
+                    className={`h-10 rounded-lg text-sm transition-colors ${
+                      current === v.id ? "bg-primary font-medium text-white" : "bg-ground text-text hover:bg-active hover:text-primary"
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              <label className="mt-1 flex h-11 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm hover:bg-active" title="Elevations without perspective, like a drawing">
+                Flat elevation
                 <input
                   type="checkbox"
                   checked={flat}
@@ -380,59 +347,63 @@ export function ModelViewer({
                     setFlat(e.target.checked);
                     goTo(current === "3d" ? "front" : current, e.target.checked);
                   }}
-                  className="h-4 w-4 accent-primary"
+                  className="h-4 w-4"
                 />
-                Flat
               </label>
-            </div>
-          </div>
 
-          {panel ? (
-            <div className="absolute right-14 top-2 w-[min(280px,calc(100%-72px))] rounded-lg bg-white p-4 text-sm text-[#141414] shadow-md" role="dialog" aria-label={panel === "look" ? "Lighting" : "Size"}>
-              <div className="mb-3 flex items-center justify-between">
-                <p className="font-medium">{panel === "look" ? "Lighting" : "Size"}</p>
-                <button type="button" className="-m-2 flex h-9 w-9 items-center justify-center rounded-md hover:bg-[#ececec]" aria-label="Close" onClick={() => setPanel(null)}>
-                  <X size={16} strokeWidth={1.5} aria-hidden="true" />
+              <p className="mt-2 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">Move</p>
+              <div className="grid grid-cols-2 gap-x-1">
+                <button type="button" className={item} onClick={() => rotate(-45)}>
+                  <RotateCcw size={18} strokeWidth={1.6} aria-hidden="true" /> Turn left
+                </button>
+                <button type="button" className={item} onClick={() => rotate(45)}>
+                  <RotateCw size={18} strokeWidth={1.6} aria-hidden="true" /> Turn right
+                </button>
+                <button type="button" className={item} onClick={() => ref.current?.zoom(10)}>
+                  <ZoomIn size={18} strokeWidth={1.6} aria-hidden="true" /> Zoom in
+                </button>
+                <button type="button" className={item} onClick={() => ref.current?.zoom(-10)}>
+                  <ZoomOut size={18} strokeWidth={1.6} aria-hidden="true" /> Zoom out
+                </button>
+                <button type="button" className={item} aria-pressed={spinning} onClick={() => setSpinning((x) => !x)}>
+                  {spinning ? <Pause size={18} strokeWidth={1.6} aria-hidden="true" /> : <Play size={18} strokeWidth={1.6} aria-hidden="true" />}
+                  {spinning ? "Stop turning" : "Turn slowly"}
+                </button>
+                <button type="button" className={item} onClick={() => goTo("3d", false)}>
+                  <Undo2 size={18} strokeWidth={1.6} aria-hidden="true" /> Reset view
                 </button>
               </div>
-              {panel === "look" ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label="Light">
-                    {LIGHTS.map((l) => (
-                      <button
-                        key={l.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={lighting === l.id}
-                        onClick={() => setLighting(l.id)}
-                        className={`h-9 rounded-md ${lighting === l.id ? "bg-[#141414] font-medium text-white" : "bg-[#f2f2f2] hover:bg-[#e8e8e8]"}`}
-                      >
-                        {l.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div>
-                    <label htmlFor="mv-exposure" className="mb-1 flex justify-between">
-                      Brightness <span className="tabular-nums text-muted">{exposure.toFixed(1)}</span>
-                    </label>
-                    <input id="mv-exposure" type="range" min={0.4} max={2} step={0.1} value={exposure} onChange={(e) => setExposure(Number(e.target.value))} className="w-full accent-primary" />
-                  </div>
-                  <label className="flex cursor-pointer items-center justify-between">
-                    Ground shadow
-                    <input type="checkbox" checked={shadows} onChange={(e) => setShadows(e.target.checked)} className="h-4 w-4 accent-primary" />
-                  </label>
-                </div>
-              ) : dims ? (
-                <dl className="space-y-1.5 tabular-nums">
-                  <div className="flex justify-between"><dt className="text-muted">Width</dt><dd>{fmt(dims.x)}</dd></div>
-                  <div className="flex justify-between"><dt className="text-muted">Depth</dt><dd>{fmt(dims.z)}</dd></div>
-                  <div className="flex justify-between"><dt className="text-muted">Height</dt><dd>{fmt(dims.y)}</dd></div>
-                  <p className="pt-2 text-xs text-muted">Overall size of the model, including any site and landscaping in it.</p>
-                </dl>
-              ) : null}
+
+              <p className="mt-2 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">More</p>
+              <div className="grid grid-cols-1">
+                <button type="button" className={item} onClick={saveImage}>
+                  <Camera size={18} strokeWidth={1.6} aria-hidden="true" /> Save this view as an image
+                </button>
+                <button type="button" className={item} onClick={() => setFull((x) => !x)}>
+                  {full ? <Minimize2 size={18} strokeWidth={1.6} aria-hidden="true" /> : <Maximize2 size={18} strokeWidth={1.6} aria-hidden="true" />}
+                  {full ? "Exit full screen" : "Full screen"}
+                </button>
+                {canAR ? (
+                  <button type="button" className={item} onClick={() => ref.current?.activateAR()}>
+                    <Box size={18} strokeWidth={1.6} aria-hidden="true" /> View in your room
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
-        </>
+
+          <button
+            type="button"
+            aria-label={menu ? "Close views and tools" : "Open views and tools"}
+            aria-expanded={menu}
+            aria-controls={menuId}
+            title={menu ? "Close" : "Views and tools"}
+            onClick={() => setMenu((x) => !x)}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[0_8px_24px_rgba(89,50,234,0.35)] transition-[background-color,transform] hover:bg-[var(--primary-hover)] active:scale-95"
+          >
+            <Plus size={26} strokeWidth={2} aria-hidden="true" className={`transition-transform duration-200 motion-reduce:transition-none ${menu ? "rotate-45" : ""}`} />
+          </button>
+        </div>
       ) : null}
     </div>
   );

@@ -73,7 +73,7 @@ export function ModelWorkspace({
       {canManage ? (
         <section className="card p-5" aria-labelledby="client-view-title">
           <h2 id="client-view-title" className="card-title mb-1">How clients see it</h2>
-          <p className="mb-4 text-muted">Frame the model and pick the lighting above, then save. Client links and embeds open this way.</p>
+          <p className="mb-4 text-muted">Frame the model above, then save. Client links and embeds open this way.</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -84,7 +84,7 @@ export function ModelWorkspace({
                   const camera = api!.currentCamera();
                   if (!camera) throw new Error("Wait for the model to load first.");
                   await saveModelView({ projectId, modelId, view: { opening: camera, lighting: api!.lighting, exposure: api!.exposure } });
-                  return "Saved. Clients open the model on this view, with this lighting.";
+                  return "Saved. Clients open the model on this view.";
                 })
               }
             >
