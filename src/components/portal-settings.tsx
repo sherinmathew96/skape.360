@@ -119,7 +119,7 @@ export function PortalSettings({
             <button type="button" className="btn btn-quiet h-9 text-xs" onClick={() => setRemoveCover(true)}>Remove</button>
           ) : null}
         </div>
-        <p className="mt-2 text-xs text-muted">A wide render or photo of the house. It fills the whole screen, so pick one with a calm lower edge.</p>
+        <p className="mt-2 text-xs text-muted">A render or photo of the house. It fills the left side of the cover page and is cropped to fit, so keep the house near the middle.</p>
       </div>
 
       <div>
