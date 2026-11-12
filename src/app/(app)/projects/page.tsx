@@ -1,0 +1,131 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { StageTrack, currentStage } from "@/components/stage-track";
+import { StatusPill } from "@/components/status-pill";
+import { requireUser } from "@/lib/auth";
+import { listProjects } from "@/lib/data";
+import { formatDate } from "@/lib/dates";
+import { can } from "@/lib/permissions";
+import { PROJECT_TYPE_LABEL } from "@/lib/stages";
+
+export const metadata: Metadata = { title: "Projects" };
+
+export default async function ProjectsPage() {
+  const user = await requireUser();
+  const projects = await listProjects(user);
+  const active = projects.filter((p) => p.status === "active").length;
+  const late = projects.reduce((n, p) => n + p.tasksOverdue, 0);
+  const canCreate = can(user.role, "projects.create");
+
+  return (
+    <div className="mx-auto max-w-[1136px]">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Projects</h1>
+          <p className="num mt-1 text-muted">
+            {projects.length} {projects.length === 1 ? "project" : "projects"}, {active} active
+            {late > 0 ? `, ${late} late ${late === 1 ? "task" : "tasks"}` : ""}
+          </p>
+        </div>
+        {canCreate ? (
+          <Link href="/projects/new" className="btn btn-primary">
+            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+            New project
+          </Link>
+        ) : null}
+      </div>
+
+      {projects.length === 0 ? (
+        <div className="card p-5">
+          <p className="empty">
+            {canCreate
+              ? "No projects yet. Create the first one with New project."
+              : "You are not on any project yet. A project manager adds you to a project's team."}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Phone and small tablet: two-line rows */}
+          <ul className="card lg:hidden">
+            {projects.map((p) => {
+              const stage = currentStage(p.stages);
+              return (
+                <li key={p.id} className="border-t border-rule first:border-t-0">
+                  <Link href={`/projects/${p.id}`} className="block px-4 py-3">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="truncate font-medium">{p.name}</p>
+                      <p className="num flex-none text-xs text-muted">{formatDate(p.dueDate)}</p>
+                    </div>
+                    <p className="mb-2 truncate text-xs leading-4 text-muted">
+                      {p.clientName} · {PROJECT_TYPE_LABEL[p.type]}
+                    </p>
+                    <StageTrack stages={p.stages} />
+                    <p className="mt-1.5 flex justify-between gap-3 text-xs leading-4 text-muted">
+                      <span className="truncate text-text">{stage.name}</span>
+                      <span className={`num flex-none ${p.tasksOverdue > 0 ? "text-negative" : ""}`}>
+                        {p.tasksOpen} open{p.tasksOverdue > 0 ? `, ${p.tasksOverdue} late` : ""}
+                      </span>
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Desktop: table */}
+          <div className="card hidden lg:block">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">Project</th>
+                  <th scope="col">Client</th>
+                  <th scope="col" className="w-[240px]">Stage</th>
+                  <th scope="col">Lead</th>
+                  <th scope="col" className="num">Open tasks</th>
+                  <th scope="col" className="num">Completion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((p) => {
+                  const stage = currentStage(p.stages);
+                  return (
+                    <tr key={p.id} className="transition-colors hover:bg-ground">
+                      <td>
+                        <Link href={`/projects/${p.id}`} className="font-medium hover:underline">{p.name}</Link>
+                        <p className="text-xs leading-4 text-muted">
+                          <span className="font-mono">{p.code}</span> · {PROJECT_TYPE_LABEL[p.type]}
+                        </p>
+                      </td>
+                      <td className="text-muted">{p.clientName}</td>
+                      <td>
+                        {p.status === "active" ? (
+                          <>
+                            <StageTrack stages={p.stages} />
+                            <p className="mt-1.5 text-xs leading-4 text-muted">
+                              <span className="text-text">{stage.name}</span> · {stage.approved} of {stage.total}
+                            </p>
+                          </>
+                        ) : (
+                          <StatusPill status={p.status} />
+                        )}
+                      </td>
+                      <td className="text-muted">{p.leadName ?? "–"}</td>
+                      <td className="num">
+                        {p.tasksOpen}
+                        <p className={`text-xs leading-4 ${p.tasksOverdue > 0 ? "text-negative" : "text-muted"}`}>
+                          {p.tasksOverdue > 0 ? `${p.tasksOverdue} late` : `${p.tasksDone} done`}
+                        </p>
+                      </td>
+                      <td className="num text-muted">{formatDate(p.dueDate)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

@@ -1,26 +1,259 @@
 @import "tailwindcss";
 
+/*
+ * SKAPE360 design tokens.
+ * Style: achromatic ledger. The chrome carries no colour; the one hue
+ * (blueprint blue) marks the stage a project is in, and nothing else.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ground: #f8f8f8;
+  --surface: #ffffff;
+  --raised: #eeeeee;
+  --active: #ebebeb;
+  --border: #e6e6e6;
+  --rule: #f0f0f0;
+  --control: #d4d4d4;
+  --text: #0a0a0a;
+  --muted: #6b6b6b;
+  --primary: #141414;
+  --stage: #1d5fbf;
+  --stage-pending: #dcdcdc;
+  --positive: #2e7d32;
+  --negative: #c4242a;
+  --pill-positive-bg: #dcfae5;
+  --pill-positive-ink: #04250e;
+  --pill-negative-bg: #ffedea;
+  --pill-negative-ink: #831c1e;
+  --pill-warning-bg: #fffbeb;
+  --pill-warning-ink: #92400e;
+  --pill-neutral-bg: #eeeeee;
+  --pill-neutral-ink: #3d3d3d;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-active: var(--active);
+  --color-border: var(--border);
+  --color-rule: var(--rule);
+  --color-control: var(--control);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-stage: var(--stage);
+  --color-stage-pending: var(--stage-pending);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --font-sans: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-card: 8px;
+  --radius-control: 6px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+  }
+
+  .card-title {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 500;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Buttons: one near-black primary per screen, a grey pill for the rest. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--radius-control);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 120ms ease, opacity 120ms ease;
+  }
+  .btn:active {
+    opacity: 0.8;
+  }
+  .btn:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: #ffffff;
+  }
+  .btn-primary:hover {
+    background: #2e2e2e;
+  }
+  .btn-secondary {
+    background: #e5e5e5;
+    color: var(--text);
+  }
+  .btn-secondary:hover {
+    background: #dadada;
+  }
+  .btn-quiet {
+    color: var(--text);
+    padding: 0 10px;
+  }
+  .btn-quiet:hover {
+    background: var(--active);
+  }
+
+  .field-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .field {
+    display: block;
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--surface);
+    border: 1px solid var(--control);
+    border-radius: var(--radius-control);
+    font-size: 16px; /* 16px stops iOS zooming on focus */
+    color: var(--text);
+  }
+  @media (min-width: 768px) {
+    .field {
+      height: 36px;
+      font-size: 14px;
+    }
+  }
+  .field::placeholder {
+    color: var(--muted);
+  }
+
+  .pill {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--pill-neutral-bg);
+    color: var(--pill-neutral-ink);
+  }
+  .pill-positive {
+    background: var(--pill-positive-bg);
+    color: var(--pill-positive-ink);
+  }
+  .pill-negative {
+    background: var(--pill-negative-bg);
+    color: var(--pill-negative-ink);
+  }
+  .pill-warning {
+    background: var(--pill-warning-bg);
+    color: var(--pill-warning-ink);
+  }
+
+  /* Tables: rules and alignment only. */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table th {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .table td {
+    padding: 12px;
+    border-top: 1px solid var(--rule);
+    vertical-align: middle;
+  }
+  .table th:first-child,
+  .table td:first-child {
+    padding-left: 20px;
+  }
+  .table th:last-child,
+  .table td:last-child {
+    padding-right: 20px;
+  }
+  .table th.num,
+  .table td.num {
+    text-align: right;
+  }
+
+  .empty {
+    padding: 10px 12px;
+    border: 1px dashed var(--control);
+    border-radius: var(--radius-card);
+    color: var(--muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+  }
+}
+
+/* A door in the 360° tour builder: a white ring with a blueprint-blue core. */
+.skape-door {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 3px solid #ffffff;
+  background: rgba(20, 20, 20, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.skape-door span {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #1d5fbf;
+}
+.skape-door:hover {
+  transform: scale(1.1);
 }
