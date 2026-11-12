@@ -16,6 +16,7 @@ export function ProjectTabs({ projectId, construction = true }: { projectId: str
       ? [
           { href: `${base}/site`, label: "Site", active: pathname.startsWith(`${base}/site`) },
           { href: `${base}/snags`, label: "Snags", active: pathname.startsWith(`${base}/snags`) },
+          { href: `${base}/materials`, label: "Materials", active: pathname.startsWith(`${base}/materials`) },
         ]
       : []),
     { href: `${base}/sharing`, label: "Client sharing", active: pathname.startsWith(`${base}/sharing`) },

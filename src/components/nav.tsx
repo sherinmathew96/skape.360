@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, LayoutDashboard, ListChecks, Users } from "lucide-react";
+import { FolderKanban, LayoutDashboard, ListChecks, Settings, ShoppingCart, Truck, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -11,16 +11,25 @@ const ITEMS = [
   { href: "/team", label: "Team", icon: Users },
 ];
 
+/** Office pages, shown in the sidebar to the roles that use them. */
+const OFFICE = {
+  purchasing: { href: "/purchasing", label: "Purchasing", icon: ShoppingCart },
+  suppliers: { href: "/suppliers", label: "Suppliers", icon: Truck },
+  settings: { href: "/settings", label: "Settings", icon: Settings },
+};
+export type OfficeLink = keyof typeof OFFICE;
+
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
 /** Desktop sidebar links. `myOverdue` badges the one queue that needs action. */
-export function SidebarNav({ myOverdue }: { myOverdue: number }) {
+export function SidebarNav({ myOverdue, office = [], waiting = 0 }: { myOverdue: number; office?: OfficeLink[]; waiting?: number }) {
   const pathname = usePathname();
+  const items = [...ITEMS, ...office.map((k) => OFFICE[k])];
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {ITEMS.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (
           <Link
@@ -36,6 +45,11 @@ export function SidebarNav({ myOverdue }: { myOverdue: number }) {
             {href === "/tasks" && myOverdue > 0 ? (
               <span className="num text-xs text-negative" aria-label={`${myOverdue} overdue`}>
                 {myOverdue} late
+              </span>
+            ) : null}
+            {href === "/purchasing" && waiting > 0 ? (
+              <span className="num text-xs text-muted" aria-label={`${waiting} requests waiting for approval`}>
+                {waiting} to approve
               </span>
             ) : null}
           </Link>

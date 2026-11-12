@@ -7,7 +7,7 @@ import { createSnag, markSnagFixed } from "@/app/site-actions";
 import { Uploader } from "./uploader";
 
 /** One optional photo, uploaded as soon as it's picked; shows a preview with Remove. */
-function PhotoPicker({ projectId, fileId, onChange, label }: { projectId: string; fileId: string | null; onChange: (id: string | null) => void; label: string }) {
+export function PhotoPicker({ projectId, fileId, onChange, label }: { projectId: string; fileId: string | null; onChange: (id: string | null) => void; label: string }) {
   const [preview, setPreview] = useState<string | null>(null);
   if (fileId && preview) {
     return (

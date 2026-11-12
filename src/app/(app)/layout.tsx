@@ -7,7 +7,9 @@ import { BottomNav, SidebarNav } from "@/components/nav";
 import { requireUser } from "@/lib/auth";
 import { listOpenTasks } from "@/lib/data";
 import { today } from "@/lib/dates";
-import { ROLE_LABEL } from "@/lib/permissions";
+import { can, ROLE_LABEL } from "@/lib/permissions";
+import { listRequests } from "@/lib/procurement";
+import type { OfficeLink } from "@/components/nav";
 
 /*
  * Shell: an open plane. The sidebar sits on the page ground behind one
@@ -21,6 +23,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const t = today();
   const mine = await listOpenTasks(user, { mine: true });
   const myOverdue = mine.filter((task) => task.dueDate && task.dueDate < t).length;
+
+  const office: OfficeLink[] = [];
+  const buyer = can(user.role, "procurement.manage");
+  if (buyer || can(user.role, "procurement.prices")) office.push("purchasing");
+  if (buyer) office.push("suppliers");
+  if (can(user.role, "staff.manage")) office.push("settings");
+  const waiting = buyer ? (await listRequests({ status: ["requested"] })).length : 0;
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[240px_minmax(0,1fr)]">
@@ -41,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </span>
         </Link>
 
-        <SidebarNav myOverdue={myOverdue} />
+        <SidebarNav myOverdue={myOverdue} office={office} waiting={waiting} />
 
         <div className="mt-auto flex items-center gap-2.5 px-2.5 pt-4">
           <Avatar name={user.name} size={28} />

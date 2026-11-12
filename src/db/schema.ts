@@ -5,6 +5,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -447,6 +448,162 @@ export const snags = pgTable(
     uniqueIndex("snags_project_number_idx").on(t.projectId, t.number),
     index("snags_status_idx").on(t.projectId, t.status),
   ],
+);
+
+// ── Admin: business settings ────────────────────────────────────────────────
+
+/** One row (id "studio"): what prints on purchase orders and, later, invoices. */
+export const businessSettings = pgTable("business_settings", {
+  id: text("id").primaryKey(),
+  companyName: text("company_name").notNull().default("Studio Skape"),
+  address: text("address"),
+  gstin: text("gstin"),
+  phone: text("phone"),
+  email: text("email"),
+  poTerms: text("po_terms"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+// ── Procurement: suppliers, material requests, purchase orders ──────────────
+
+/** Money and quantities are exact decimals; Drizzle returns them as strings. */
+const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
+const qty = (name: string) => numeric(name, { precision: 14, scale: 3 });
+
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
+    gstin: text("gstin"),
+    address: text("address"),
+    /** What they supply, e.g. "Cement, steel" */
+    supplies: text("supplies"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("suppliers_name_idx").on(t.name)],
+);
+
+/** requested → approved | rejected; approved → ordered (a PO exists) → closed (all delivered). */
+export const REQUEST_STATUSES = ["requested", "approved", "rejected", "ordered", "closed"] as const;
+export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+
+export const materialRequests = pgTable(
+  "material_requests",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… within the project, shown as MR-001 */
+    number: integer("number").notNull(),
+    status: text("status").$type<RequestStatus>().notNull().default("requested"),
+    neededBy: date("needed_by"),
+    note: text("note"),
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+  },
+  (t) => [uniqueIndex("requests_project_number_idx").on(t.projectId, t.number), index("requests_status_idx").on(t.status)],
+);
+
+export const materialRequestItems = pgTable(
+  "material_request_items",
+  {
+    id: id(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => materialRequests.id, { onDelete: "cascade" }),
+    description: text("description").notNull(),
+    quantity: qty("quantity").notNull(),
+    unit: text("unit").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("request_items_request_idx").on(t.requestId, t.position)],
+);
+
+/** draft → issued → partly_received → received; or cancelled. */
+export const PO_STATUSES = ["draft", "issued", "partly_received", "received", "cancelled"] as const;
+export type PoStatus = (typeof PO_STATUSES)[number];
+
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: id(),
+    /** PO-2026-001, numbered across the studio per year */
+    number: text("number").notNull().unique(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    requestId: uuid("request_id").references(() => materialRequests.id, { onDelete: "set null" }),
+    status: text("status").$type<PoStatus>().notNull().default("draft"),
+    expectedDate: date("expected_date"),
+    deliveryAddress: text("delivery_address"),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }),
+  },
+  (t) => [index("pos_project_idx").on(t.projectId), index("pos_status_idx").on(t.status)],
+);
+
+export const poItems = pgTable(
+  "po_items",
+  {
+    id: id(),
+    poId: uuid("po_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    description: text("description").notNull(),
+    quantity: qty("quantity").notNull(),
+    unit: text("unit").notNull(),
+    rate: money("rate").notNull(),
+    /** Percent, e.g. 18 */
+    gstRate: numeric("gst_rate", { precision: 5, scale: 2 }).notNull().default("18"),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("po_items_po_idx").on(t.poId, t.position)],
+);
+
+/** One delivery against a PO, recorded on site. */
+export const goodsReceipts = pgTable(
+  "goods_receipts",
+  {
+    id: id(),
+    poId: uuid("po_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    receivedOn: date("received_on").notNull(),
+    note: text("note"),
+    photoFileId: uuid("photo_file_id").references(() => files.id, { onDelete: "set null" }),
+    receivedBy: uuid("received_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("receipts_po_idx").on(t.poId)],
+);
+
+export const goodsReceiptItems = pgTable(
+  "goods_receipt_items",
+  {
+    receiptId: uuid("receipt_id")
+      .notNull()
+      .references(() => goodsReceipts.id, { onDelete: "cascade" }),
+    poItemId: uuid("po_item_id")
+      .notNull()
+      .references(() => poItems.id, { onDelete: "cascade" }),
+    quantity: qty("quantity").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.receiptId, t.poItemId] })],
 );
 
 /** "site_updates" shares a project's client-visible site reports; its item id is the project id. */
