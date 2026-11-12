@@ -5,12 +5,14 @@ import { createShareLink, revokeShareLink } from "@/app/studio-actions";
 import { ActionForm } from "@/components/action-form";
 import { ConfirmButton } from "@/components/confirm-button";
 import { CopyField } from "@/components/copy-field";
+import { PortalSettings } from "@/components/portal-settings";
 import { ProjectHeader } from "@/components/project-header";
 import { requireUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
 import { appOrigin } from "@/lib/origin";
 import { can } from "@/lib/permissions";
 import { shareableDrawings } from "@/lib/drawings";
+import { getProjectPortal, slugify } from "@/lib/portal";
 import { listModels, listShareLinks, listTours } from "@/lib/studio";
 
 export const metadata: Metadata = { title: "Client sharing" };
@@ -24,7 +26,8 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
   if (!project) notFound();
   const manage = can(user.role, "share.manage");
 
-  const [links, models, tours, drawings, origin] = await Promise.all([
+  const [portal, links, models, tours, drawings, origin] = await Promise.all([
+    getProjectPortal(project.id),
     listShareLinks(project.id),
     listModels(project.id),
     listTours(project.id),
@@ -60,6 +63,31 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
       />
 
       <div className={`grid grid-cols-1 items-start gap-3 ${manage ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
+        <div className="grid min-w-0 grid-cols-1 gap-3">
+        <section className="card p-5" aria-labelledby="portal-title">
+          <h2 id="portal-title" className="card-title mb-1">Client portal</h2>
+          {portal ? (
+            <>
+              <p className="mb-4 text-muted">
+                {portal.enabled ? "The client's own page for this project: a cover, then drawings, 3D, 360° tours and site progress, always up to date." : "Closed. The address shows nothing until you open it again."}
+              </p>
+              {portal.enabled ? <CopyField label="Portal address" value={`${origin}/${portal.slug}`} /> : null}
+              <p className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted">
+                <span>
+                  {portal.passcodeHash ? "Passcode needed" : "No passcode"} · {portal.views} {portal.views === 1 ? "visit" : "visits"}
+                  {portal.lastViewedAt ? `, last ${timeFmt.format(portal.lastViewedAt)}` : ""}
+                </span>
+                {portal.enabled ? (
+                  <a href={`/${portal.slug}`} target="_blank" rel="noreferrer" className="font-medium text-text hover:underline">Open the portal</a>
+                ) : null}
+              </p>
+            </>
+          ) : (
+            <p className="text-muted">
+              {manage ? "Give the client one address for everything on this project, like a portfolio page. Set it up on the right." : "No portal yet."}
+            </p>
+          )}
+        </section>
         <section className="card" aria-labelledby="links-title">
           <h2 id="links-title" className="card-title px-5 pb-2 pt-4">Links and embeds</h2>
           {links.length === 0 ? (
@@ -118,8 +146,32 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
             </ul>
           )}
         </section>
+        </div>
 
         {manage ? (
+          <div className="grid min-w-0 grid-cols-1 gap-3">
+          <section className="card p-5" aria-labelledby="portal-setup-title">
+            <h2 id="portal-setup-title" className="card-title mb-4">{portal ? "Portal settings" : "Set up the portal"}</h2>
+            <PortalSettings
+              projectId={project.id}
+              origin={origin}
+              suggestedSlug={slugify(project.name)}
+              showSite={project.type !== "design"}
+              existing={
+                portal
+                  ? {
+                      slug: portal.slug,
+                      enabled: portal.enabled,
+                      hasPasscode: Boolean(portal.passcodeHash),
+                      coverUrl: portal.coverFileId ? `/api/files/${portal.coverFileId}` : null,
+                      brief: portal.brief,
+                      area: portal.area,
+                      sections: portal.sections,
+                    }
+                  : null
+              }
+            />
+          </section>
           <section className="card p-5" aria-labelledby="new-link-title">
             <h2 id="new-link-title" className="card-title mb-1">New client link</h2>
             <p className="mb-4 text-muted">Send it by WhatsApp or email. It opens on any phone or computer.</p>
@@ -165,6 +217,7 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
               </ActionForm>
             )}
           </section>
+          </div>
         ) : null}
       </div>
     </div>

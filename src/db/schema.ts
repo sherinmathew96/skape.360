@@ -418,6 +418,8 @@ export const approvals = pgTable(
     shareLinkId: uuid("share_link_id").references(() => shareLinks.id, { onDelete: "set null" }),
     /** Set when staff recorded it on the client's behalf */
     recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+    /** Set when it came through the project's client portal */
+    portalId: uuid("portal_id").references(() => clientPortals.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [index("approvals_revision_idx").on(t.revisionId)],
@@ -865,3 +867,34 @@ export type Project = typeof projects.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type Stage = typeof projectStages.$inferSelect;
 export type Milestone = typeof milestones.$inferSelect;
+
+// ── Client portal: the project's own page at 360.studioskape.in/<slug> ─────
+
+export type PortalSections = { drawings: boolean; models: boolean; tours: boolean; site: boolean };
+
+export const clientPortals = pgTable("client_portals", {
+  id: id(),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  /** The address: lowercase letters, numbers and hyphens, e.g. "kadavil-residence" */
+  slug: text("slug").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(true),
+  /** Without one, anyone who has or guesses the address can open it */
+  passcodeHash: text("passcode_hash"),
+  coverFileId: uuid("cover_file_id").references(() => files.id, { onDelete: "set null" }),
+  /** A short description of the project for the cover */
+  brief: text("brief"),
+  /** Built-up area or plot, as the studio writes it, e.g. "3,200 sq ft" */
+  area: text("area"),
+  sections: jsonb("sections")
+    .$type<PortalSections>()
+    .notNull()
+    .default({ drawings: true, models: true, tours: true, site: true }),
+  views: integer("views").notNull().default(0),
+  lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

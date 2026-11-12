@@ -5,7 +5,7 @@ import { clientDecision } from "@/app/drawing-actions";
 import { ActionForm } from "./action-form";
 
 /** Approve, or ask for changes, on the drawing revision a client is looking at. */
-export function ClientDecision({ token, revisionId, label }: { token: string; revisionId: string; label: string }) {
+export function ClientDecision({ token, portal, revisionId, label }: { token?: string; portal?: string; revisionId: string; label: string }) {
   const [decision, setDecision] = useState<"approved" | "changes_requested">("approved");
   const id = revisionId.slice(0, 8);
   return (
@@ -15,7 +15,7 @@ export function ClientDecision({ token, revisionId, label }: { token: string; re
       pendingLabel="Sending…"
       className="space-y-4"
     >
-      <input type="hidden" name="token" value={token} />
+      {portal ? <input type="hidden" name="portal" value={portal} /> : <input type="hidden" name="token" value={token} />}
       <input type="hidden" name="revisionId" value={revisionId} />
       <fieldset>
         <legend className="field-label">Your decision</legend>

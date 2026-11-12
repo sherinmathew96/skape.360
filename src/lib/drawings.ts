@@ -175,15 +175,16 @@ async function approvalsFor(revisionIds: string[]): Promise<ApprovalRow[]> {
       createdAt: s.approvals.createdAt,
       linkTitle: s.shareLinks.title,
       recorderName: recorder.name,
+      portalId: s.approvals.portalId,
     })
     .from(s.approvals)
     .leftJoin(s.shareLinks, eq(s.shareLinks.id, s.approvals.shareLinkId))
     .leftJoin(recorder, eq(recorder.id, s.approvals.recordedBy))
     .where(inArray(s.approvals.revisionId, revisionIds))
     .orderBy(desc(s.approvals.createdAt));
-  return rows.map(({ linkTitle, recorderName, ...a }) => ({
+  return rows.map(({ linkTitle, recorderName, portalId, ...a }) => ({
     ...a,
-    via: recorderName ? `recorded by ${recorderName}` : linkTitle ? "through the client link" : "",
+    via: recorderName ? `recorded by ${recorderName}` : linkTitle ? "through the client link" : portalId ? "through the client portal" : "",
   }));
 }
 

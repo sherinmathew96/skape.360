@@ -257,3 +257,94 @@ h2 {
 .skape-door:hover {
   transform: scale(1.1);
 }
+
+/* ── Client portal cover ─────────────────────────────────────────────────────
+   The cover image fills the screen with the project name along its lower
+   edge like a film title. Where the browser can tie animation to scrolling,
+   it first shows the image through a 4:5 window on paper, with the name
+   beside it, and the window opens to the edges over the first screen of
+   scroll. Elsewhere, and with reduced motion, it is simply full-bleed. */
+.portal-window {
+  clip-path: inset(0);
+}
+.portal-paper {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .portal-window {
+      --open-y: max(6svh, calc((100svh - 45vw) / 2));
+      clip-path: inset(var(--open-y) 32vw);
+      animation: portal-open linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 100svh;
+    }
+    .portal-paper {
+      display: block;
+      animation: portal-fade-out linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 45svh;
+    }
+    .portal-topbar {
+      animation: portal-ink linear both;
+      animation-timeline: scroll(root);
+      animation-range: 60svh 100svh;
+    }
+    .portal-title {
+      animation: portal-fade-in linear both;
+      animation-timeline: scroll(root);
+      animation-range: 60svh 100svh;
+    }
+    @media (max-width: 767px) {
+      .portal-window {
+        clip-path: inset(30svh 11vw 22svh);
+      }
+    }
+  }
+}
+@keyframes portal-open {
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes portal-fade-out {
+  to {
+    opacity: 0;
+    transform: translateY(-24px);
+    visibility: hidden;
+  }
+}
+@keyframes portal-ink {
+  from {
+    color: var(--text);
+  }
+}
+@keyframes portal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* Parts of each section rise into place once, as the section comes into view. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .portal-rise > * {
+      animation: portal-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+    .portal-rise > *:nth-child(2) {
+      animation-range: entry 8% entry 68%;
+    }
+    .portal-rise > *:nth-child(3) {
+      animation-range: entry 16% entry 76%;
+    }
+  }
+}
+@keyframes portal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}

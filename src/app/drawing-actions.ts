@@ -10,6 +10,7 @@ import { requireUser, type SessionUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
 import { clientDrawings } from "@/lib/drawings";
 import { can } from "@/lib/permissions";
+import { loadPortal } from "@/lib/portal";
 import { loadShare, loadSharedItems } from "@/lib/share";
 import { deleteStored, storedSize } from "@/lib/storage";
 import type { FormState } from "./actions";
@@ -380,9 +381,29 @@ export async function deleteDrawing(formData: FormData) {
 // ── Public: the client decides from their link ──────────────────────────────
 
 export async function clientDecision(_: FormState, formData: FormData): Promise<FormState> {
+  // From a share link (token) or from the project's client portal (slug).
   const token = String(formData.get("token") ?? "");
-  const { state, link } = await loadShare(token);
-  if (state !== "ok" || !link) return { error: "This link can no longer be used." };
+  const portalSlug = String(formData.get("portal") ?? "");
+  let linkId: string | null = null;
+  let portalId: string | null = null;
+  let registerProject: string | undefined;
+  let ids: string[] = [];
+  let path: string;
+  if (portalSlug) {
+    const { state, portal } = await loadPortal(portalSlug);
+    if (state !== "ok" || !portal || !portal.sections.drawings) return { error: "This page can no longer be used." };
+    portalId = portal.id;
+    registerProject = portal.projectId;
+    path = `/${portal.slug}`;
+  } else {
+    const { state, link } = await loadShare(token);
+    if (state !== "ok" || !link) return { error: "This link can no longer be used." };
+    linkId = link.id;
+    const { order } = await loadSharedItems(link.id);
+    ids = order.filter((i) => i.itemType === "drawing").map((i) => i.itemId);
+    registerProject = order.find((i) => i.itemType === "drawing_register")?.itemId;
+    path = `/s/${token}`;
+  }
 
   const parsed = decisionInput.safeParse({
     decision: formData.get("decision"),
@@ -397,11 +418,8 @@ export async function clientDecision(_: FormState, formData: FormData): Promise<
   const revisionId = uuid.safeParse(formData.get("revisionId"));
   if (!revisionId.success) return { error: "That drawing was not found." };
 
-  // The revision must be the one this link shows right now, still awaiting a decision.
-  const { order } = await loadSharedItems(link.id);
-  // Drawings on the link: those shared one by one, plus the whole register if it is shared.
-  let ids = order.filter((i) => i.itemType === "drawing").map((i) => i.itemId);
-  const registerProject = order.find((i) => i.itemType === "drawing_register")?.itemId;
+  // The revision must be one this page shows right now, still awaiting a decision:
+  // drawings shared one by one, plus the whole register if it is shared.
   if (registerProject) {
     const db = await getDb();
     const rows = await db
@@ -422,11 +440,12 @@ export async function clientDecision(_: FormState, formData: FormData): Promise<
       decision: parsed.data.decision,
       name: parsed.data.name,
       comment: parsed.data.comment || null,
-      shareLinkId: link.id,
+      shareLinkId: linkId,
+      portalId,
     });
     await tx.update(s.drawingRevisions).set({ status: parsed.data.decision }).where(eq(s.drawingRevisions.id, target.revision.id));
   });
   await statusFromDecision(target.id, parsed.data.decision);
-  revalidatePath(`/s/${token}`);
+  revalidatePath(path, "layout");
   return { ok: parsed.data.decision === "approved" ? "Thank you. Your approval has been sent to the studio." : "Thank you. Your comments have been sent to the studio." };
 }

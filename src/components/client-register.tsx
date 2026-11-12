@@ -16,10 +16,24 @@ const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short
  * and current revision, grouped like the studio's sheet. Picking one opens
  * it beside the list on a computer and full screen on a phone.
  */
-export function ClientRegister({ register, token, fileBase }: { register: Register; token: string; fileBase: string }) {
+export function ClientRegister({
+  register,
+  token,
+  portal,
+  fileBase,
+  initialId,
+}: {
+  register: Register;
+  token?: string;
+  portal?: string;
+  fileBase: string;
+  /** Opens this drawing at once, e.g. from "Waiting for your approval" */
+  initialId?: string;
+}) {
   const all = register.flatMap((g) => g.drawings);
-  const [selectedId, setSelectedId] = useState<string | null>(all.find((d) => d.revision)?.id ?? null);
-  const [open, setOpen] = useState(false);
+  const initial = all.find((d) => d.id === initialId && d.revision);
+  const [selectedId, setSelectedId] = useState<string | null>(initial?.id ?? all.find((d) => d.revision)?.id ?? null);
+  const [open, setOpen] = useState(Boolean(initial));
   const closeRef = useRef<HTMLButtonElement>(null);
   const selected = all.find((d) => d.id === selectedId) ?? null;
 
@@ -121,7 +135,7 @@ export function ClientRegister({ register, token, fileBase }: { register: Regist
                   </>
                 ) : null}
                 {rev.status === "issued" ? (
-                  <ClientDecision key={rev.id} token={token} revisionId={rev.id} label={label} />
+                  <ClientDecision key={rev.id} token={token} portal={portal} revisionId={rev.id} label={label} />
                 ) : rev.decision ? (
                   <div role="status">
                     <p className={rev.decision.decision === "approved" ? "font-medium text-positive" : "font-medium text-negative"}>
