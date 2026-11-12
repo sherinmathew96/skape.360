@@ -60,7 +60,7 @@ export default async function PortalOverview({ params }: Props) {
               const now = i === currentIdx;
               return (
                 <li key={st.id} className="flex items-center gap-3 sm:block">
-                  <span className={`block h-1.5 w-10 flex-none rounded-full sm:mb-2 sm:w-auto ${done ? "bg-text" : now ? "bg-[#1d5fbf]" : "bg-raised"}`} aria-hidden="true" />
+                  <span className={`block h-1.5 w-10 flex-none rounded-full sm:mb-2 sm:w-auto ${done ? "bg-mint-ink" : now ? "bg-primary" : "bg-raised"}`} aria-hidden="true" />
                   <span className={`flex items-start gap-1.5 text-sm ${done || now ? "text-text" : "text-muted"} ${now ? "font-medium" : ""}`}>
                     {done ? <Check size={14} strokeWidth={2} aria-label="Done" className="mt-[3px] flex-none" /> : null}
                     {st.name}

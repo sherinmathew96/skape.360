@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Camera, Plus } from "lucide-react";
+import { AlertTriangle, Camera, ClipboardList, HardHat, Plus } from "lucide-react";
+import { StatGrid } from "@/components/stat-grid";
 import { ProjectHeader } from "@/components/project-header";
 import { requireUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
@@ -55,18 +56,14 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
         actions={action}
       />
 
-      <dl className="card mb-3 grid grid-cols-3">
-        {[
-          ["Reports in 7 days", `${thisWeek.length} of 7`],
-          ["Worker-days in 7 days", String(manDays)],
-          ["Days with issues", String(withIssues)],
-        ].map(([label, value], i) => (
-          <div key={label} className={`px-4 py-3 md:px-5 md:py-4 ${i > 0 ? "border-l border-rule" : ""}`}>
-            <dt className="text-xs text-muted md:text-sm">{label}</dt>
-            <dd className={`num mt-1 text-xl md:text-[30px] md:leading-9 ${label === "Days with issues" && withIssues > 0 ? "text-negative" : ""}`}>{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <StatGrid
+        className="mb-3"
+        stats={[
+          { label: "Reports in 7 days", value: `${thisWeek.length} of 7`, icon: ClipboardList },
+          { label: "Worker-days in 7 days", value: manDays, icon: HardHat },
+          { label: "Days with issues", value: withIssues, icon: AlertTriangle, bad: withIssues > 0 },
+        ]}
+      />
 
       <section className="card" aria-labelledby="reports-title">
         <h2 id="reports-title" className="card-title px-5 pb-2 pt-4">Daily reports</h2>

@@ -30,7 +30,7 @@ export function ModelUpload({ projectId }: { projectId: string }) {
         <p id="model-title-help" className="mt-2 text-xs text-muted">Leave empty to use the file name.</p>
       </div>
       <label className="flex cursor-pointer items-start gap-3">
-        <input type="checkbox" checked={optimize} onChange={(e) => setOptimize(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-[#141414]" />
+        <input type="checkbox" checked={optimize} onChange={(e) => setOptimize(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-primary" />
         <span>
           Make it load fast (recommended)
           <span className="block text-xs text-muted">

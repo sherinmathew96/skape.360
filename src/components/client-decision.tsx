@@ -27,7 +27,7 @@ export function ClientDecision({ token, portal, revisionId, label }: { token?: s
               value="approved"
               checked={decision === "approved"}
               onChange={() => setDecision("approved")}
-              className="h-5 w-5 accent-[#141414]"
+              className="h-5 w-5 accent-primary"
             />
             Approve
           </label>
@@ -38,7 +38,7 @@ export function ClientDecision({ token, portal, revisionId, label }: { token?: s
               value="changes_requested"
               checked={decision === "changes_requested"}
               onChange={() => setDecision("changes_requested")}
-              className="h-5 w-5 accent-[#141414]"
+              className="h-5 w-5 accent-primary"
             />
             Ask for changes
           </label>

@@ -11,9 +11,15 @@ import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 
 export const metadata: Metadata = { title: "Projects" };
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
-  const projects = await listProjects(user);
+  const q = ((await searchParams).q ?? "").trim();
+  const all = await listProjects(user);
+  // The search in the top bar: name, client, code or place.
+  const needle = q.toLowerCase();
+  const projects = needle
+    ? all.filter((p) => [p.name, p.clientName, p.code, p.location ?? ""].some((v) => v.toLowerCase().includes(needle)))
+    : all;
   const active = projects.filter((p) => p.status === "active").length;
   const late = projects.reduce((n, p) => n + p.tasksOverdue, 0);
   const canCreate = can(user.role, "projects.create");
@@ -23,10 +29,17 @@ export default async function ProjectsPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
           <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Projects</h1>
-          <p className="num mt-1 text-muted">
-            {projects.length} {projects.length === 1 ? "project" : "projects"}, {active} active
-            {late > 0 ? `, ${late} late ${late === 1 ? "task" : "tasks"}` : ""}
-          </p>
+          {q ? (
+            <p className="mt-1 text-muted">
+              {projects.length} {projects.length === 1 ? "match" : "matches"} for “{q}” ·{" "}
+              <Link href="/projects" className="font-medium text-primary hover:underline">Show all</Link>
+            </p>
+          ) : (
+            <p className="num mt-1 text-muted">
+              {projects.length} {projects.length === 1 ? "project" : "projects"}, {active} active
+              {late > 0 ? `, ${late} late ${late === 1 ? "task" : "tasks"}` : ""}
+            </p>
+          )}
         </div>
         {canCreate ? (
           <Link href="/projects/new" className="btn btn-primary">
@@ -39,7 +52,9 @@ export default async function ProjectsPage() {
       {projects.length === 0 ? (
         <div className="card p-5">
           <p className="empty">
-            {canCreate
+            {q
+              ? `No project matches “${q}”. Try the client's name or the project code.`
+              : canCreate
               ? "No projects yet. Create the first one with New project."
               : "You are not on any project yet. A project manager adds you to a project's team."}
           </p>

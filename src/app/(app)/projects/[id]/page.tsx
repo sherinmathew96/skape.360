@@ -83,7 +83,7 @@ export default async function ProjectPage({ params }: Props) {
             <li key={s.id} className="min-w-0">
               <span
                 className={`block h-2 rounded-[1px] ${
-                  s.status === "approved" ? "bg-primary" : s.status === "in_progress" ? "bg-stage" : "bg-stage-pending"
+                  s.status === "approved" ? "bg-mint-ink" : s.status === "in_progress" ? "bg-stage" : "bg-stage-pending"
                 }`}
               />
               <span

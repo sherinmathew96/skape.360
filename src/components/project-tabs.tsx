@@ -31,7 +31,7 @@ export function ProjectTabs({ projectId, construction = true, money = false }: {
               href={t.href}
               aria-current={t.active ? "page" : undefined}
               className={`-mb-px flex h-10 items-center border-b-2 ${
-                t.active ? "border-text font-medium text-text" : "border-transparent text-muted hover:text-text"
+                t.active ? "border-primary font-medium text-primary" : "border-transparent text-muted hover:text-primary"
               }`}
             >
               {t.label}

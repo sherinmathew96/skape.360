@@ -2,32 +2,41 @@
 
 /*
  * SKAPE360 design tokens.
- * Style: achromatic ledger. The chrome carries no colour; the one hue
- * (blueprint blue) marks the stage a project is in, and nothing else.
+ * Style: clean dashboard. A soft blue-white ground, white cards with a
+ * faint lift, one violet for actions and the current place, mint and red
+ * for good and bad states. Poppins throughout.
  */
 :root {
-  --ground: #f8f8f8;
+  --ground: #fafbff;
   --surface: #ffffff;
-  --raised: #eeeeee;
-  --active: #ebebeb;
-  --border: #e6e6e6;
-  --rule: #f0f0f0;
-  --control: #d4d4d4;
-  --text: #0a0a0a;
-  --muted: #6b6b6b;
-  --primary: #141414;
-  --stage: #1d5fbf;
-  --stage-pending: #dcdcdc;
-  --positive: #2e7d32;
-  --negative: #c4242a;
-  --pill-positive-bg: #dcfae5;
-  --pill-positive-ink: #04250e;
-  --pill-negative-bg: #ffedea;
-  --pill-negative-ink: #831c1e;
-  --pill-warning-bg: #fffbeb;
-  --pill-warning-ink: #92400e;
-  --pill-neutral-bg: #eeeeee;
-  --pill-neutral-ink: #3d3d3d;
+  --raised: #f1f2f9;
+  --active: #f3f0ff;
+  --border: #eef0f6;
+  --rule: #eeeeee;
+  --control: #dfe2ee;
+  --text: #292d32;
+  --muted: #6a6f8e; /* 5:1 on white; the reference's #9197b3 is too faint to read */
+  --primary: #5932ea;
+  --primary-hover: #4a24d6;
+  --stage: #5932ea;
+  --stage-pending: #e3e5ef;
+  --positive: #00875f;
+  --negative: #d0021b;
+  --mint: #e6faf0;
+  --mint-ink: #00ac4f;
+  --pill-positive-bg: #e5f8f2;
+  --pill-positive-line: #00b087;
+  --pill-positive-ink: #00775a;
+  --pill-negative-bg: #ffecec;
+  --pill-negative-line: #df0404;
+  --pill-negative-ink: #c00303;
+  --pill-warning-bg: #fff6e5;
+  --pill-warning-line: #f0a020;
+  --pill-warning-ink: #8a5300;
+  --pill-neutral-bg: #f1f2f9;
+  --pill-neutral-line: #d4d7e5;
+  --pill-neutral-ink: #4b4f6b;
+  --lift: 0 10px 60px rgba(226, 236, 249, 0.6);
 }
 
 @theme inline {
@@ -45,10 +54,12 @@
   --color-stage-pending: var(--stage-pending);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
-  --font-sans: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  --color-mint: var(--mint);
+  --color-mint-ink: var(--mint-ink);
+  --font-sans: var(--font-poppins), Inter, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --radius-card: 8px;
-  --radius-control: 6px;
+  --radius-card: 20px;
+  --radius-control: 8px;
 }
 
 html {
@@ -60,7 +71,7 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 20px;
+  line-height: 21px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -70,8 +81,13 @@ h2 {
 }
 
 :focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--primary);
 }
 
 @layer components {
@@ -79,54 +95,57 @@ h2 {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
+    box-shadow: var(--lift);
   }
 
   .card-title {
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 500;
+    font-size: 17px;
+    line-height: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .num {
     font-variant-numeric: tabular-nums;
   }
 
-  /* Buttons: one near-black primary per screen, a grey pill for the rest. */
+  /* Buttons: violet for the one main action, a soft grey for the rest. */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 36px;
-    padding: 0 14px;
+    height: 40px;
+    padding: 0 16px;
     border-radius: var(--radius-control);
     font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background-color 120ms ease, opacity 120ms ease;
+    transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease, transform 150ms ease;
   }
   .btn:active {
-    opacity: 0.8;
+    transform: translateY(1px);
   }
   .btn:disabled {
     cursor: default;
-    opacity: 0.6;
+    opacity: 0.55;
+    transform: none;
   }
   .btn-primary {
     background: var(--primary);
     color: #ffffff;
   }
   .btn-primary:hover {
-    background: #2e2e2e;
+    background: var(--primary-hover);
   }
   .btn-secondary {
-    background: #e5e5e5;
+    background: var(--raised);
     color: var(--text);
   }
   .btn-secondary:hover {
-    background: #dadada;
+    background: #e6e8f3;
   }
   .btn-quiet {
     color: var(--text);
@@ -134,6 +153,7 @@ h2 {
   }
   .btn-quiet:hover {
     background: var(--active);
+    color: var(--primary);
   }
 
   .field-label {
@@ -145,31 +165,44 @@ h2 {
   .field {
     display: block;
     width: 100%;
-    height: 40px;
-    padding: 0 12px;
-    background: var(--surface);
+    height: 44px;
+    padding: 0 14px;
+    background: #f9fbff;
     border: 1px solid var(--control);
-    border-radius: var(--radius-control);
+    border-radius: 10px;
     font-size: 16px; /* 16px stops iOS zooming on focus */
     color: var(--text);
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+  .field:hover {
+    border-color: #c9cde0;
+  }
+  .field:focus {
+    background: #ffffff;
+    border-color: var(--primary);
+    outline: 3px solid rgba(89, 50, 234, 0.14);
+    outline-offset: 0;
   }
   @media (min-width: 768px) {
     .field {
-      height: 36px;
+      height: 40px;
       font-size: 14px;
     }
   }
   .field::placeholder {
-    color: var(--muted);
+    color: #9197b3;
   }
 
+  /* Status pills: a tinted fill with a line of the same hue, as in the reference. */
   .pill {
     display: inline-flex;
     flex: none;
     align-items: center;
-    height: 22px;
-    padding: 0 8px;
+    justify-content: center;
+    height: 26px;
+    padding: 0 10px;
     border-radius: 4px;
+    border: 1px solid var(--pill-neutral-line);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
@@ -178,43 +211,56 @@ h2 {
   }
   .pill-positive {
     background: var(--pill-positive-bg);
+    border-color: var(--pill-positive-line);
     color: var(--pill-positive-ink);
   }
   .pill-negative {
     background: var(--pill-negative-bg);
+    border-color: var(--pill-negative-line);
     color: var(--pill-negative-ink);
   }
   .pill-warning {
     background: var(--pill-warning-bg);
+    border-color: var(--pill-warning-line);
     color: var(--pill-warning-ink);
   }
 
-  /* Tables: rules and alignment only. */
+  /* Tables: quiet headings, roomy rows divided by a light line. */
   .table {
     width: 100%;
     border-collapse: collapse;
   }
   .table th {
-    height: 36px;
+    height: 44px;
     padding: 0 12px;
-    font-size: 12px;
-    font-weight: 400;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--muted);
     text-align: left;
     white-space: nowrap;
+    border-bottom: 1px solid var(--rule);
   }
   .table td {
-    padding: 12px;
+    padding: 16px 12px;
     border-top: 1px solid var(--rule);
     vertical-align: middle;
   }
+  .table tbody tr:first-child td {
+    border-top: 0;
+  }
+  .table tbody tr {
+    transition: background-color 150ms ease;
+  }
+  .table tbody tr:hover {
+    background: #fbfbff;
+  }
   .table th:first-child,
   .table td:first-child {
-    padding-left: 20px;
+    padding-left: 24px;
   }
   .table th:last-child,
   .table td:last-child {
-    padding-right: 20px;
+    padding-right: 24px;
   }
   .table th.num,
   .table td.num {
@@ -222,9 +268,10 @@ h2 {
   }
 
   .empty {
-    padding: 10px 12px;
+    padding: 14px 16px;
     border: 1px dashed var(--control);
-    border-radius: var(--radius-card);
+    border-radius: 12px;
+    background: #fbfcff;
     color: var(--muted);
   }
 }
@@ -252,7 +299,7 @@ h2 {
   width: 14px;
   height: 14px;
   border-radius: 9999px;
-  background: #1d5fbf;
+  background: var(--primary);
 }
 .skape-door:hover {
   transform: scale(1.1);

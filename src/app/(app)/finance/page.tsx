@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Download, Plus } from "lucide-react";
+import { AlertTriangle, Download, HandCoins, Plus, ReceiptIndianRupee, Wallet } from "lucide-react";
+import { StatGrid } from "@/components/stat-grid";
 import { requireUser } from "@/lib/auth";
 import { listProjects } from "@/lib/data";
 import { addDays, formatDate, formatDue, today } from "@/lib/dates";
@@ -60,20 +61,15 @@ export default async function FinancePage() {
         )}
       </div>
 
-      <dl className="card mb-3 grid grid-cols-2 md:grid-cols-4">
-        {[
-          ["Clients owe", formatINR(receivable), `${unpaid.length} unpaid ${unpaid.length === 1 ? "invoice" : "invoices"}`, ""],
-          ["Overdue", formatINR(overdueTotal), `${overdue.length} ${overdue.length === 1 ? "invoice" : "invoices"}`, overdue.length ? "text-negative" : ""],
-          ["We owe suppliers", formatINR(payable), `${formatINR(payableWeek)} due in 7 days`, ""],
-          ["Expenses this month", formatINR(monthSpend), `${expenses.length} entries`, ""],
-        ].map(([label, value, sub, tone], i) => (
-          <div key={label} className={`px-5 py-4 ${i % 2 === 1 ? "border-l border-rule" : ""} ${i >= 2 ? "border-t border-rule md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`}>
-            <dt className="text-muted">{label}</dt>
-            <dd className={`num mt-1 truncate text-xl leading-8 md:text-[26px] ${tone}`}>{value}</dd>
-            <dd className="num truncate text-xs text-muted">{sub}</dd>
-          </div>
-        ))}
-      </dl>
+      <StatGrid
+        className="mb-6"
+        stats={[
+          { label: "Clients owe", value: formatINR(receivable), note: `${unpaid.length} unpaid ${unpaid.length === 1 ? "invoice" : "invoices"}`, icon: HandCoins },
+          { label: "Overdue", value: formatINR(overdueTotal), note: `${overdue.length} ${overdue.length === 1 ? "invoice" : "invoices"}`, icon: AlertTriangle, bad: overdue.length > 0 },
+          { label: "We owe suppliers", value: formatINR(payable), note: `${formatINR(payableWeek)} due in 7 days`, icon: ReceiptIndianRupee },
+          { label: "Expenses this month", value: formatINR(monthSpend), note: `${expenses.length} entries`, icon: Wallet },
+        ]}
+      />
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         <section className="card" aria-labelledby="recv-title">

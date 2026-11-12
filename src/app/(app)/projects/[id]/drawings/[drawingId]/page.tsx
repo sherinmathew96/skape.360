@@ -91,10 +91,10 @@ export default async function DrawingPage({ params, searchParams }: Props) {
                   <legend className="field-label">Decision on {revLabel(latest.rev)}</legend>
                   <div className="flex flex-wrap gap-x-5 gap-y-2">
                     <label className="flex min-h-10 items-center gap-2">
-                      <input type="radio" name="decision" value="approved" defaultChecked className="h-4 w-4 accent-[#141414]" /> Approved
+                      <input type="radio" name="decision" value="approved" defaultChecked className="h-4 w-4 accent-primary" /> Approved
                     </label>
                     <label className="flex min-h-10 items-center gap-2">
-                      <input type="radio" name="decision" value="changes_requested" className="h-4 w-4 accent-[#141414]" /> Changes requested
+                      <input type="radio" name="decision" value="changes_requested" className="h-4 w-4 accent-primary" /> Changes requested
                     </label>
                   </div>
                 </fieldset>
@@ -206,7 +206,7 @@ export default async function DrawingPage({ params, searchParams }: Props) {
                   </div>
                 </div>
                 <label className="flex min-h-10 items-center gap-2">
-                  <input type="checkbox" name="clientVisible" defaultChecked={drawing.clientVisible} className="h-4 w-4 accent-[#141414]" />
+                  <input type="checkbox" name="clientVisible" defaultChecked={drawing.clientVisible} className="h-4 w-4 accent-primary" />
                   Show on the client&rsquo;s drawing register
                 </label>
               </ActionForm>

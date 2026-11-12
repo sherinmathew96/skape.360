@@ -12,8 +12,8 @@ export function currentStage(stages: Stage[]) {
 }
 
 /**
- * The project's stage ladder as one segmented bar: approved stages in ink,
- * the stage in progress in blueprint blue, the rest in grey.
+ * The project's stage ladder as one segmented bar: approved stages in mint
+ * green, the stage in progress in violet, the rest in grey.
  */
 export function StageTrack({ stages, className = "" }: { stages: Stage[]; className?: string }) {
   const { name, approved, total } = currentStage(stages);
@@ -26,9 +26,9 @@ export function StageTrack({ stages, className = "" }: { stages: Stage[]; classN
       {stages.map((stage) => (
         <span
           key={stage.id}
-          className={`h-full flex-1 rounded-[1px] ${
+          className={`h-full flex-1 rounded-full ${
             stage.status === "approved"
-              ? "bg-primary"
+              ? "bg-mint-ink"
               : stage.status === "in_progress"
                 ? "bg-stage"
                 : "bg-stage-pending"

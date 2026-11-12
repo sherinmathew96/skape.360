@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { ClipboardCheck, IndianRupee, PackageCheck, Plus, Truck } from "lucide-react";
+import { StatGrid } from "@/components/stat-grid";
 import { requireUser } from "@/lib/auth";
 import { formatDate, formatDue, today } from "@/lib/dates";
 import { formatINR, formatQty, orderTotals } from "@/lib/money";
@@ -58,19 +59,15 @@ export default async function PurchasingPage({ searchParams }: Props) {
         ) : null}
       </div>
 
-      <dl className="card mb-3 grid grid-cols-2 md:grid-cols-4">
-        {[
-          ["To approve", String(toApprove.length), toApprove.length ? "text-negative" : ""],
-          ["Approved, not ordered", String(toOrder.length), ""],
-          ["Awaiting delivery", String(awaiting.length), ""],
-          ["Value awaiting delivery", formatINR(openValue), ""],
-        ].map(([label, value, tone], i) => (
-          <div key={label} className={`px-5 py-4 ${i % 2 === 1 ? "border-l border-rule" : ""} ${i >= 2 ? "border-t border-rule md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`}>
-            <dt className="text-muted">{label}</dt>
-            <dd className={`num mt-1 truncate text-2xl leading-9 md:text-[30px] ${tone}`}>{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <StatGrid
+        className="mb-6"
+        stats={[
+          { label: "To approve", value: toApprove.length, icon: ClipboardCheck, bad: toApprove.length > 0 },
+          { label: "Approved, not ordered", value: toOrder.length, icon: PackageCheck },
+          { label: "Awaiting delivery", value: awaiting.length, icon: Truck },
+          { label: "Value awaiting delivery", value: formatINR(openValue), icon: IndianRupee },
+        ]}
+      />
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <section className="card" aria-labelledby="queue-title">

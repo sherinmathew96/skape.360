@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, IndianRupee, LayoutDashboard, ListChecks, Settings, ShoppingCart, Truck, Users } from "lucide-react";
+import { ChevronRight, FolderKanban, IndianRupee, LayoutDashboard, ListChecks, Settings, ShoppingCart, Truck, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -24,35 +24,47 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-/** Desktop sidebar links. `myOverdue` badges the one queue that needs action. */
+/** Desktop sidebar links: the current page is filled violet. Counts mark queues that need action. */
 export function SidebarNav({ myOverdue, office = [], waiting = 0 }: { myOverdue: number; office?: OfficeLink[]; waiting?: number }) {
   const pathname = usePathname();
   const items = [...ITEMS, ...office.map((k) => OFFICE[k])];
   return (
-    <nav aria-label="Main" className="flex flex-col gap-0.5">
+    <nav aria-label="Main" className="flex flex-col gap-1.5">
       {items.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
+        const count =
+          href === "/tasks" && myOverdue > 0
+            ? { n: myOverdue, label: `${myOverdue} overdue` }
+            : href === "/purchasing" && waiting > 0
+              ? { n: waiting, label: `${waiting} requests waiting for approval` }
+              : null;
         return (
           <Link
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 transition-colors ${
-              active ? "bg-active text-text" : "text-muted hover:bg-active hover:text-text"
+            className={`group flex h-12 items-center gap-3 rounded-lg px-3.5 font-medium transition-colors ${
+              active ? "bg-primary text-white" : "text-muted hover:bg-active hover:text-primary"
             }`}
           >
-            <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+            <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
             <span className="flex-1">{label}</span>
-            {href === "/tasks" && myOverdue > 0 ? (
-              <span className="num text-xs text-negative" aria-label={`${myOverdue} overdue`}>
-                {myOverdue} late
+            {count ? (
+              <span
+                className={`num inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                  active ? "bg-white text-primary" : "bg-[#ffecec] text-negative"
+                }`}
+                aria-label={count.label}
+              >
+                {count.n}
               </span>
             ) : null}
-            {href === "/purchasing" && waiting > 0 ? (
-              <span className="num text-xs text-muted" aria-label={`${waiting} requests waiting for approval`}>
-                {waiting} to approve
-              </span>
-            ) : null}
+            <ChevronRight
+              size={16}
+              strokeWidth={1.8}
+              aria-hidden="true"
+              className={`transition-transform group-hover:translate-x-0.5 ${active ? "text-white" : "text-[#9197b3]"}`}
+            />
           </Link>
         );
       })}
@@ -66,7 +78,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(226,236,249,0.7)] md:hidden"
     >
       {ITEMS.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
@@ -75,11 +87,11 @@ export function BottomNav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex h-14 flex-col items-center justify-center gap-1 text-xs ${
-              active ? "font-medium text-text" : "text-muted"
-            }`}
+            className={`flex h-16 flex-col items-center justify-center gap-1 text-xs ${active ? "font-semibold text-primary" : "text-muted"}`}
           >
-            <Icon size={20} strokeWidth={active ? 2 : 1.5} aria-hidden="true" />
+            <span className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${active ? "bg-active" : ""}`}>
+              <Icon size={20} strokeWidth={active ? 2 : 1.6} aria-hidden="true" />
+            </span>
             {label}
           </Link>
         );

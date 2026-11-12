@@ -190,7 +190,7 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
                     {shareable.map((it) => (
                       <li key={it.value}>
                         <label className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 hover:bg-ground">
-                          <input type="checkbox" name="item" value={it.value} defaultChecked className="h-4 w-4 accent-[#141414]" />
+                          <input type="checkbox" name="item" value={it.value} defaultChecked className="h-4 w-4 accent-primary" />
                           <span className="min-w-0 flex-1 truncate">{it.label}</span>
                           <span className="flex-none text-xs text-muted">{it.kind}</span>
                         </label>

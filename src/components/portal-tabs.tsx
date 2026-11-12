@@ -18,7 +18,7 @@ export function PortalTabs({ tabs }: { tabs: PortalTab[] }) {
               <Link
                 href={t.href}
                 aria-current={active ? "page" : undefined}
-                className={`-mb-px flex h-11 items-center gap-2 border-b-2 ${active ? "border-text font-medium text-text" : "border-transparent text-muted hover:text-text"}`}
+                className={`-mb-px flex h-11 items-center gap-2 border-b-2 ${active ? "border-primary font-medium text-primary" : "border-transparent text-muted hover:text-primary"}`}
               >
                 {t.label}
                 {t.count ? (

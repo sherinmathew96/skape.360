@@ -8,10 +8,10 @@ const LABEL: Record<ProjectStatus, string> = {
 };
 
 const TONE: Record<ProjectStatus, string> = {
-  active: "",
+  active: "pill-positive",
   on_hold: "pill-warning",
-  completed: "pill-positive",
-  cancelled: "",
+  completed: "",
+  cancelled: "pill-negative",
 };
 
 export function StatusPill({ status }: { status: ProjectStatus }) {

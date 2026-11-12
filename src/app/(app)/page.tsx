@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import { StageTrack, currentStage } from "@/components/stage-track";
+import { AlertTriangle, CalendarClock, Flag, FolderKanban, Plus } from "lucide-react";
+import { currentStage } from "@/components/stage-track";
+import { ProjectTable, type ProjectTableRow } from "@/components/project-table";
+import { StatGrid, type Stat } from "@/components/stat-grid";
 import { TaskList } from "@/components/task-list";
 import { requireUser } from "@/lib/auth";
 import { listOpenMilestones, listOpenTasks, listProjects } from "@/lib/data";
@@ -10,14 +12,16 @@ import { can } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Overview" };
 
+const STATUS: Record<string, { label: string; tone: string }> = {
+  on_hold: { label: "On hold", tone: "pill-warning" },
+  completed: { label: "Completed", tone: "" },
+  cancelled: { label: "Cancelled", tone: "pill-negative" },
+};
+
 /* The screen's question: what is due this week, and what is slipping? */
 export default async function OverviewPage() {
   const user = await requireUser();
-  const [projects, tasks, milestones] = await Promise.all([
-    listProjects(user),
-    listOpenTasks(user),
-    listOpenMilestones(user),
-  ]);
+  const [projects, tasks, milestones] = await Promise.all([listProjects(user), listOpenTasks(user), listOpenMilestones(user)]);
 
   const t = today();
   const weekEnd = addDays(t, 6);
@@ -27,11 +31,13 @@ export default async function OverviewPage() {
   const milestonesSoon = milestones.filter((m) => m.dueDate <= addDays(t, 30));
   const attention = [...overdue, ...dueThisWeek];
   const ROWS = 6;
+  const overdueProjects = new Set(overdue.map((task) => task.projectId)).size;
+  const onSite = active.filter((p) => p.type !== "design").length;
+  const nextMilestone = milestones[0];
 
   // The finding: the one fact that most needs attention today.
   let finding = "Nothing is overdue.";
   if (overdue.length > 0) {
-    const overdueProjects = new Set(overdue.map((task) => task.projectId)).size;
     const oldest = daysBetween(overdue[0].dueDate!, t);
     finding = `${overdue.length} ${overdue.length === 1 ? "task is" : "tasks are"} overdue across ${overdueProjects} ${
       overdueProjects === 1 ? "project" : "projects"
@@ -40,136 +46,127 @@ export default async function OverviewPage() {
     finding = `Nothing is overdue. ${dueThisWeek.length} ${dueThisWeek.length === 1 ? "task is" : "tasks are"} due in the next 7 days.`;
   }
 
-  const kpis = [
-    { label: "Active projects", value: active.length, tone: "" },
-    { label: "Tasks due, 7 days", value: dueThisWeek.length, tone: "" },
-    { label: "Tasks overdue", value: overdue.length, tone: overdue.length > 0 ? "text-negative" : "text-muted" },
-    { label: "Milestones, 30 days", value: milestonesSoon.length, tone: "" },
+  const stats: Stat[] = [
+    {
+      label: "Active projects",
+      value: active.length,
+      note: active.length ? `${onSite} with site work` : "None yet",
+      icon: FolderKanban,
+      bad: false,
+    },
+    {
+      label: "Due this week",
+      value: dueThisWeek.length,
+      note: `of ${tasks.length} open ${tasks.length === 1 ? "task" : "tasks"}`,
+      icon: CalendarClock,
+      bad: false,
+    },
+    {
+      label: "Overdue",
+      value: overdue.length,
+      note: overdue.length ? `across ${overdueProjects} ${overdueProjects === 1 ? "project" : "projects"}` : "All on time",
+      icon: AlertTriangle,
+      bad: overdue.length > 0,
+    },
+    {
+      label: "Milestones",
+      value: milestonesSoon.length,
+      note: nextMilestone ? `in 30 days, next ${formatDate(nextMilestone.dueDate)}` : "None in 30 days",
+      icon: Flag,
+      bad: false,
+    },
   ];
 
+  const rows: ProjectTableRow[] = projects.map((p) => {
+    const stage = currentStage(p.stages);
+    return {
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      clientName: p.clientName,
+      location: p.location,
+      stage: stage.name,
+      stageProgress: `${stage.approved} of ${stage.total} approved`,
+      tasksOpen: p.tasksOpen,
+      tasksOverdue: p.tasksOverdue,
+      dueDate: p.dueDate,
+      dueLabel: formatDate(p.dueDate),
+      status:
+        p.status === "active"
+          ? p.tasksOverdue > 0
+            ? { label: "Running late", tone: "pill-negative" }
+            : { label: "On track", tone: "pill-positive" }
+          : STATUS[p.status],
+    };
+  });
+  const onTrack = rows.filter((r) => r.status.label === "On track").length;
+
   return (
-    <div className="mx-auto max-w-[1136px]">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+    <div>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Overview</h1>
+          <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">Overview</h1>
           <p className="mt-1 text-muted">{finding}</p>
         </div>
         {can(user.role, "projects.create") ? (
-          <Link href="/projects/new" className="btn btn-primary">
-            <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
+          <Link href="/projects/new" className="btn btn-primary h-11 px-5">
+            <Plus size={18} strokeWidth={1.8} aria-hidden="true" />
             New project
           </Link>
         ) : null}
       </div>
 
-      {/* One container, four figures. */}
-      <dl className="card mb-3 grid grid-cols-2 md:grid-cols-4">
-        {kpis.map((kpi, i) => (
-          <div
-            key={kpi.label}
-            className={`px-5 py-4 ${i % 2 === 1 ? "border-l border-rule" : ""} ${i >= 2 ? "border-t border-rule md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`}
-          >
-            <dt className="text-muted">{kpi.label}</dt>
-            <dd className={`num mt-1 text-[30px] leading-9 ${kpi.tone}`}>{kpi.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <StatGrid stats={stats} className="mb-6" />
 
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <section className="card flex flex-col" aria-labelledby="due-title">
-          <div className="flex items-center justify-between px-5 pb-2 pt-4">
+      <div className="mb-6">
+        <ProjectTable rows={rows} title="All projects" subtitle={`${onTrack} on track${rows.length - onTrack ? `, ${rows.length - onTrack} need a look` : ""}`} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="card flex flex-col overflow-hidden" aria-labelledby="due-title">
+          <div className="flex items-center justify-between px-6 pb-3 pt-6">
             <h2 id="due-title" className="card-title">Overdue and due this week</h2>
-            <Link href="/tasks?view=all" className="text-muted hover:text-text hover:underline">
+            <Link href="/tasks?view=all" className="text-sm font-medium text-primary hover:underline">
               View all {tasks.length}
             </Link>
           </div>
           {attention.length > 0 ? (
             <TaskList tasks={attention.slice(0, ROWS)} />
           ) : (
-            <p className="empty mx-5 mb-5 mt-2">No tasks are overdue or due in the next 7 days.</p>
+            <p className="empty mx-6 mb-6 mt-1">No tasks are overdue or due in the next 7 days.</p>
           )}
           {attention.length > ROWS ? (
-            <p className="mt-auto border-t border-rule px-5 py-3 text-xs text-muted">
-              {attention.length - ROWS} more in <Link href="/tasks?view=all" className="text-text underline">all tasks</Link>
+            <p className="mt-auto border-t border-rule px-6 py-3 text-xs text-muted">
+              {attention.length - ROWS} more in{" "}
+              <Link href="/tasks?view=all" className="font-medium text-primary hover:underline">all tasks</Link>
             </p>
           ) : null}
         </section>
 
-        <section className="card" aria-labelledby="milestones-title">
-          <h2 id="milestones-title" className="card-title px-5 pb-2 pt-4">Next milestones</h2>
+        <section className="card overflow-hidden" aria-labelledby="milestones-title">
+          <h2 id="milestones-title" className="card-title px-6 pb-3 pt-6">Next milestones</h2>
           {milestones.length > 0 ? (
             <ul>
               {milestones.slice(0, ROWS).map((m) => {
                 const late = m.dueDate < t;
                 return (
-                  <li key={m.id} className="flex min-h-14 items-center gap-3 border-t border-rule px-5 py-2 first:border-t-0">
+                  <li key={m.id} className="flex min-h-16 items-center gap-3 border-t border-rule px-6 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate">{m.name}</p>
-                      <p className="truncate text-xs leading-4 text-muted">
-                        <Link href={`/projects/${m.projectId}`} className="hover:text-text hover:underline">{m.projectName}</Link>
+                      <p className="truncate font-medium">{m.name}</p>
+                      <p className="truncate text-xs leading-5 text-muted">
+                        <Link href={`/projects/${m.projectId}`} className="hover:text-primary hover:underline">{m.projectName}</Link>
                       </p>
                     </div>
-                    <span className={`num flex-none text-xs ${late ? "font-medium text-negative" : "text-muted"}`}>
-                      {late ? formatDue(m.dueDate) : formatDate(m.dueDate)}
-                    </span>
+                    <span className={`pill ${late ? "pill-negative" : ""}`}>{late ? formatDue(m.dueDate) : formatDate(m.dueDate)}</span>
                   </li>
                 );
               })}
             </ul>
           ) : (
-            <p className="empty mx-5 mb-5 mt-2">No open milestones.</p>
+            <p className="empty mx-6 mb-6 mt-1">No open milestones.</p>
           )}
         </section>
       </div>
-
-      <section className="card" aria-labelledby="projects-title">
-        <div className="flex items-center justify-between px-5 pb-2 pt-4">
-          <h2 id="projects-title" className="card-title">Active projects</h2>
-          <Link href="/projects" className="text-muted hover:text-text hover:underline">All projects</Link>
-        </div>
-        {active.length > 0 ? (
-          <ul>
-            {active.map((p) => {
-              const stage = currentStage(p.stages);
-              return (
-                <li key={p.id} className="border-t border-rule first:border-t-0">
-                  <Link
-                    href={`/projects/${p.id}`}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-2 px-5 py-3 transition-colors hover:bg-ground md:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_88px_88px]"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{p.name}</p>
-                      <p className="truncate text-xs leading-4 text-muted">{p.clientName}</p>
-                    </div>
-                    <div className="col-span-2 row-start-2 min-w-0 md:col-span-1 md:row-start-auto">
-                      <StageTrack stages={p.stages} />
-                      <p className="mt-1.5 truncate text-xs leading-4 text-muted">
-                        <span className="text-text">{stage.name}</span> · {stage.approved} of {stage.total} approved
-                      </p>
-                    </div>
-                    <div className="num hidden text-right md:block">
-                      <p>{p.tasksOpen} open</p>
-                      <p className={`text-xs leading-4 ${p.tasksOverdue > 0 ? "text-negative" : "text-muted"}`}>
-                        {p.tasksOverdue > 0 ? `${p.tasksOverdue} late` : "None late"}
-                      </p>
-                    </div>
-                    <div className="num text-right">
-                      <p>{formatDate(p.dueDate)}</p>
-                      <p className="text-xs leading-4 text-muted">Completion</p>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="empty mx-5 mb-5 mt-2">
-            {can(user.role, "projects.create")
-              ? "No active projects yet. Create the first one with New project."
-              : "You are not on any active project yet."}
-          </p>
-        )}
-      </section>
     </div>
   );
 }

@@ -148,7 +148,7 @@ export function NewDrawing({
             type="file"
             accept={FILE_KINDS.drawing.accept}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-[#e5e5e5] file:px-3 file:font-medium"
+            className="block w-full text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-raised file:px-3 file:font-medium"
           />
         </div>
         <div>
@@ -209,7 +209,7 @@ export function NewRevision({ projectId, drawingId, nextRev }: { projectId: stri
             type="file"
             accept={FILE_KINDS.drawing.accept}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-[#e5e5e5] file:px-3 file:font-medium"
+            className="block w-full text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-raised file:px-3 file:font-medium"
           />
         </div>
         <div>

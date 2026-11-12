@@ -380,7 +380,7 @@ export function ModelViewer({
                     setFlat(e.target.checked);
                     goTo(current === "3d" ? "front" : current, e.target.checked);
                   }}
-                  className="h-4 w-4 accent-[#141414]"
+                  className="h-4 w-4 accent-primary"
                 />
                 Flat
               </label>
@@ -413,21 +413,21 @@ export function ModelViewer({
                   </div>
                   <div>
                     <label htmlFor="mv-exposure" className="mb-1 flex justify-between">
-                      Brightness <span className="tabular-nums text-[#6b6b6b]">{exposure.toFixed(1)}</span>
+                      Brightness <span className="tabular-nums text-muted">{exposure.toFixed(1)}</span>
                     </label>
-                    <input id="mv-exposure" type="range" min={0.4} max={2} step={0.1} value={exposure} onChange={(e) => setExposure(Number(e.target.value))} className="w-full accent-[#141414]" />
+                    <input id="mv-exposure" type="range" min={0.4} max={2} step={0.1} value={exposure} onChange={(e) => setExposure(Number(e.target.value))} className="w-full accent-primary" />
                   </div>
                   <label className="flex cursor-pointer items-center justify-between">
                     Ground shadow
-                    <input type="checkbox" checked={shadows} onChange={(e) => setShadows(e.target.checked)} className="h-4 w-4 accent-[#141414]" />
+                    <input type="checkbox" checked={shadows} onChange={(e) => setShadows(e.target.checked)} className="h-4 w-4 accent-primary" />
                   </label>
                 </div>
               ) : dims ? (
                 <dl className="space-y-1.5 tabular-nums">
-                  <div className="flex justify-between"><dt className="text-[#6b6b6b]">Width</dt><dd>{fmt(dims.x)}</dd></div>
-                  <div className="flex justify-between"><dt className="text-[#6b6b6b]">Depth</dt><dd>{fmt(dims.z)}</dd></div>
-                  <div className="flex justify-between"><dt className="text-[#6b6b6b]">Height</dt><dd>{fmt(dims.y)}</dd></div>
-                  <p className="pt-2 text-xs text-[#6b6b6b]">Overall size of the model, including any site and landscaping in it.</p>
+                  <div className="flex justify-between"><dt className="text-muted">Width</dt><dd>{fmt(dims.x)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted">Depth</dt><dd>{fmt(dims.z)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted">Height</dt><dd>{fmt(dims.y)}</dd></div>
+                  <p className="pt-2 text-xs text-muted">Overall size of the model, including any site and landscaping in it.</p>
                 </dl>
               ) : null}
             </div>

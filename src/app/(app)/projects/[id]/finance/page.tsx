@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { BadgeIndianRupee, HandCoins, Plus, ReceiptIndianRupee, Wallet } from "lucide-react";
+import { StatGrid } from "@/components/stat-grid";
 import { saveBillingDetails } from "@/app/finance-actions";
 import { ActionForm } from "@/components/action-form";
 import { ExpenseList } from "@/components/expense-list";
@@ -71,15 +72,16 @@ export default async function ProjectFinancePage({ params }: { params: Promise<{
         }
       />
 
-      <dl className="card mb-3 grid grid-cols-2 md:grid-cols-4">
-        {kpis.map(([label, value, sub], i) => (
-          <div key={label} className={`px-5 py-4 ${i % 2 === 1 ? "border-l border-rule" : ""} ${i >= 2 ? "border-t border-rule md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`}>
-            <dt className="text-muted">{label}</dt>
-            <dd className={`num mt-1 truncate text-xl leading-8 md:text-[26px] ${label === "Owed by client" && overdue.length ? "text-negative" : ""}`}>{value}</dd>
-            {sub ? <dd className="num truncate text-xs text-muted">{sub}</dd> : null}
-          </div>
-        ))}
-      </dl>
+      <StatGrid
+        className="mb-3"
+        stats={kpis.map(([label, value, note], i) => ({
+          label,
+          value,
+          note,
+          icon: [BadgeIndianRupee, Wallet, HandCoins, ReceiptIndianRupee][i],
+          bad: label === "Owed by client" && overdue.length > 0,
+        }))}
+      />
       <p className="num mb-3 px-1 text-muted">
         Received minus spent: <span className={margin < 0 ? "font-medium text-negative" : "font-medium text-text"}>{formatINR(margin)}</span>
         {money.unbilledOrders > 0 ? ` · ${formatINR(money.unbilledOrders)} more is ordered from suppliers and not yet billed` : ""}

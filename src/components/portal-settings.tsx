@@ -113,7 +113,7 @@ export function PortalSettings({
               setRemoveCover(false);
               setPreview(f ? URL.createObjectURL(f) : existing?.coverUrl ?? null);
             }}
-            className="block min-w-0 flex-1 text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-[#e5e5e5] file:px-3 file:font-medium"
+            className="block min-w-0 flex-1 text-sm file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border-0 file:bg-raised file:px-3 file:font-medium"
           />
           {existing?.coverUrl && !cover && !removeCover ? (
             <button type="button" className="btn btn-quiet h-9 text-xs" onClick={() => setRemoveCover(true)}>Remove</button>
@@ -146,7 +146,7 @@ export function PortalSettings({
           {SECTIONS.filter(([key]) => key !== "site" || showSite).map(([key, label, help]) => (
             <li key={key}>
               <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-ground">
-                <input type="checkbox" name={key} defaultChecked={existing ? existing.sections[key] : true} className="mt-0.5 h-4 w-4 flex-none accent-[#141414]" />
+                <input type="checkbox" name={key} defaultChecked={existing ? existing.sections[key] : true} className="mt-0.5 h-4 w-4 flex-none accent-primary" />
                 <span>
                   <span className="block">{label}</span>
                   <span className="block text-xs text-muted">{help}</span>
@@ -162,17 +162,17 @@ export function PortalSettings({
         <div className="space-y-1">
           {existing?.hasPasscode ? (
             <label className="flex min-h-10 items-center gap-2">
-              <input type="radio" name="access" value="keep" checked={access === "keep"} onChange={() => setAccess("keep")} className="h-4 w-4 accent-[#141414]" />
+              <input type="radio" name="access" value="keep" checked={access === "keep"} onChange={() => setAccess("keep")} className="h-4 w-4 accent-primary" />
               Keep the current passcode
             </label>
           ) : existing ? (
             <label className="flex min-h-10 items-center gap-2">
-              <input type="radio" name="access" value="keep" checked={access === "keep"} onChange={() => setAccess("keep")} className="h-4 w-4 accent-[#141414]" />
+              <input type="radio" name="access" value="keep" checked={access === "keep"} onChange={() => setAccess("keep")} className="h-4 w-4 accent-primary" />
               Keep it open, no passcode
             </label>
           ) : null}
           <label className="flex min-h-10 items-center gap-2">
-            <input type="radio" name="access" value="set" checked={access === "set"} onChange={() => setAccess("set")} className="h-4 w-4 accent-[#141414]" />
+            <input type="radio" name="access" value="set" checked={access === "set"} onChange={() => setAccess("set")} className="h-4 w-4 accent-primary" />
             {existing?.hasPasscode ? "Set a new passcode" : "Ask for a passcode (recommended)"}
           </label>
           {access === "set" ? (
@@ -180,7 +180,7 @@ export function PortalSettings({
           ) : null}
           {existing?.hasPasscode || !existing ? (
             <label className="flex min-h-10 items-center gap-2">
-              <input type="radio" name="access" value="none" checked={access === "none"} onChange={() => setAccess("none")} className="h-4 w-4 accent-[#141414]" />
+              <input type="radio" name="access" value="none" checked={access === "none"} onChange={() => setAccess("none")} className="h-4 w-4 accent-primary" />
               No passcode
             </label>
           ) : null}
@@ -191,7 +191,7 @@ export function PortalSettings({
       </fieldset>
 
       <label className="flex min-h-10 items-center gap-2">
-        <input type="checkbox" name="enabled" defaultChecked={existing ? existing.enabled : true} className="h-4 w-4 accent-[#141414]" />
+        <input type="checkbox" name="enabled" defaultChecked={existing ? existing.enabled : true} className="h-4 w-4 accent-primary" />
         Portal is open to the client
       </label>
 

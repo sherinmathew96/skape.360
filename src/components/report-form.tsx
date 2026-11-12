@@ -131,7 +131,7 @@ export function ReportForm({
         <p id="r-issues-help" className="mt-2 text-xs text-muted">For the office only. Clients never see this.</p>
       </div>
       <label className="flex min-h-11 cursor-pointer items-start gap-3">
-        <input type="checkbox" name="clientVisible" defaultChecked={initial.clientVisible} className="mt-0.5 h-5 w-5 flex-none accent-[#141414]" />
+        <input type="checkbox" name="clientVisible" defaultChecked={initial.clientVisible} className="mt-0.5 h-5 w-5 flex-none accent-primary" />
         <span>
           Show on client progress updates
           <span className="block text-xs text-muted">The date, weather, work done and photos. Not labour or issues.</span>
