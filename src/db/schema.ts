@@ -234,6 +234,18 @@ export const files = pgTable(
 
 // ── Studio: 3D models and 360° tours ────────────────────────────────────────
 
+export const LIGHTING = ["studio", "daylight", "overcast", "evening"] as const;
+export type Lighting = (typeof LIGHTING)[number];
+
+export type ModelView = {
+  /** Degrees to turn so the model's front faces the "Front" view */
+  frontYaw?: number;
+  lighting?: Lighting;
+  exposure?: number;
+  /** The camera clients first see: orbit ("30deg 70deg 40m") and target ("1m 2m 3m") */
+  opening?: { orbit: string; target: string };
+};
+
 export const models3d = pgTable(
   "models_3d",
   {
@@ -245,6 +257,12 @@ export const models3d = pgTable(
     fileId: uuid("file_id")
       .notNull()
       .references(() => files.id, { onDelete: "cascade" }),
+    /** True once compressed for fast loading (on upload, or later) */
+    optimized: boolean("optimized").notNull().default(false),
+    /** A still of the model, shown while it loads and in lists */
+    coverFileId: uuid("cover_file_id").references(() => files.id, { onDelete: "set null" }),
+    /** How it opens: which side is the front, lighting and exposure */
+    view: jsonb("view").$type<ModelView>().notNull().default({}),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },

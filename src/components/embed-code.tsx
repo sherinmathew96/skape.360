@@ -51,7 +51,7 @@ export function EmbedCode({
     );
   }
 
-  const url = `${origin}/embed/${token}/${itemType}/${itemId}`;
+  const url = `${origin}/e/${token}`;
   const safeTitle = title.replace(/"/g, "&quot;");
   const code = `<iframe src="${url}" title="${safeTitle}" width="100%" height="560" style="border:0" allow="fullscreen; xr-spatial-tracking" allowfullscreen loading="lazy"></iframe>`;
   return (

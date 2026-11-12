@@ -14,8 +14,9 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: "/embed/:path*", headers: [...common, { key: "Content-Security-Policy", value: "frame-ancestors *" }] },
+      { source: "/e/:path*", headers: [...common, { key: "Content-Security-Policy", value: "frame-ancestors *" }] },
       {
-        source: "/((?!embed/).*)",
+        source: "/((?!embed/|e/).*)",
         headers: [...common, { key: "Content-Security-Policy", value: "frame-ancestors 'none'" }, { key: "X-Frame-Options", value: "DENY" }],
       },
     ];

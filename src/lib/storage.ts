@@ -31,6 +31,7 @@ function assertLocalAllowed() {
 }
 
 const LOCAL_ROOT = path.join(process.cwd(), ".data", "uploads");
+const WINDOW = 12 * 60 * 60 * 1000;
 const localPath = (key: string) => {
   const full = path.join(LOCAL_ROOT, key);
   if (!full.startsWith(LOCAL_ROOT + path.sep)) throw new Error("Bad storage key");
@@ -127,10 +128,13 @@ export async function serveFile(file: { storageKey: string; name: string; conten
         Key: file.storageKey,
         ResponseContentType: file.contentType,
         ResponseContentDisposition: disposition,
+        ResponseCacheControl: "private, max-age=43200, immutable",
       }),
-      { expiresIn: 60 * 60 },
+      // Signed at the start of a 12-hour window, so the link is the same all
+      // window long and the browser can reuse a model it already downloaded.
+      { expiresIn: 24 * 60 * 60, signingDate: new Date(Math.floor(Date.now() / WINDOW) * WINDOW) },
     );
-    return new Response(null, { status: 302, headers: { Location: url, "Cache-Control": "private, max-age=600" } });
+    return new Response(null, { status: 302, headers: { Location: url, "Cache-Control": "private, max-age=3600" } });
   }
 
   const full = localPath(file.storageKey);

@@ -70,7 +70,7 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
                 const embed = l.title.startsWith("Embed:");
                 const names = l.items.map((i) => itemTitle(i.itemType, i.itemId)).filter(Boolean);
                 const url = embed && l.items[0]
-                  ? `${origin}/embed/${l.token}/${l.items[0].itemType}/${l.items[0].itemId}`
+                  ? `${origin}/e/${l.token}`
                   : `${origin}/s/${l.token}`;
                 return (
                   <li key={l.id} className={`border-t border-rule px-5 py-4 first:border-t-0 ${closed ? "text-muted" : ""}`}>

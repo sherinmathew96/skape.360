@@ -45,6 +45,15 @@ export const FILE_KINDS = {
     maxBytes: 25 * 1024 * 1024,
     help: "A photo or PDF of the receipt or bill.",
   },
+  cover: {
+    label: "cover image",
+    accept: "image/jpeg,image/png,image/webp",
+    extensions: [".jpg", ".jpeg", ".png", ".webp"],
+    contentTypes: ["image/jpeg", "image/png", "image/webp"],
+    storedType: null,
+    maxBytes: 8 * 1024 * 1024,
+    help: "A still of the model.",
+  },
 } as const;
 
 export type FileKind = keyof typeof FILE_KINDS;

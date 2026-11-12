@@ -16,7 +16,8 @@ export const shareCookieValue = (token: string, passcodeHash: string) =>
   createHash("sha256").update(`${token}:${passcodeHash}`).digest("base64url");
 
 export async function loadShare(token: string) {
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return { state: "missing" as const, link: null };
+  // 8-character codes now; older links have 24.
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(token)) return { state: "missing" as const, link: null };
   const db = await getDb();
   const [link] = await db
     .select({
@@ -45,7 +46,7 @@ export async function loadShare(token: string) {
   return { state: "ok" as const, link };
 }
 
-export type SharedModel = { id: string; title: string; fileId: string };
+export type SharedModel = { id: string; title: string; fileId: string; coverFileId: string | null; view: s.ModelView };
 
 export async function loadSharedItems(linkId: string): Promise<{
   models: SharedModel[];
@@ -66,7 +67,7 @@ export async function loadSharedItems(linkId: string): Promise<{
   const siteProject = order.find((i) => i.itemType === "site_updates")?.itemId;
   const [models, tours, drawings, siteUpdates] = await Promise.all([
     modelIds.length
-      ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId }).from(s.models3d).where(inArray(s.models3d.id, modelIds))
+      ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, coverFileId: s.models3d.coverFileId, view: s.models3d.view }).from(s.models3d).where(inArray(s.models3d.id, modelIds))
       : Promise.resolve([]),
     getTours(tourIds),
     clientDrawings(drawingIds),
@@ -79,7 +80,7 @@ export async function loadSharedItems(linkId: string): Promise<{
 export async function isSharedFile(linkId: string, fileId: string) {
   const { models, tours, drawings, siteUpdates } = await loadSharedItems(linkId);
   return (
-    models.some((m) => m.fileId === fileId) ||
+    models.some((m) => m.fileId === fileId || m.coverFileId === fileId) ||
     tours.some((t) => t.scenes.some((sc) => sc.fileId === fileId)) ||
     drawings.some((d) => d.revision.fileId === fileId) ||
     siteUpdates.some((r) => r.photos.some((p) => p.fileId === fileId))

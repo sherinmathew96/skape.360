@@ -1,13 +1,14 @@
 "use server";
 
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { shortToken } from "@/lib/short-token";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, asc, count, eq, gt, max } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
-import { SHARE_ITEM_TYPES } from "@/db/schema";
+import { LIGHTING, SHARE_ITEM_TYPES, type ModelView } from "@/db/schema";
 import { requireProjectMember } from "@/lib/access";
 import { requirePermission, type SessionUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
@@ -114,18 +115,78 @@ async function claimUpload(user: SessionUser, projectId: string, fileId: string)
 
 // ── 3D models ───────────────────────────────────────────────────────────────
 
-export async function createModel(input: { projectId: string; fileId: string; title: string }) {
+export async function createModel(input: { projectId: string; fileId: string; title: string; optimized?: boolean }) {
   const { user, project } = await requireStudioProject(input.projectId);
   const file = await claimUpload(user, project.id, input.fileId);
   const title = input.title.trim() || file.name.replace(/\.glb$/i, "");
   const db = await getDb();
   const [model] = await db
     .insert(s.models3d)
-    .values({ projectId: project.id, title, fileId: file.id, createdBy: user.id })
+    .values({ projectId: project.id, title, fileId: file.id, optimized: Boolean(input.optimized), createdBy: user.id })
     .returning({ id: s.models3d.id });
   await audit(user, "create", "model", model.id);
   refresh(project.id);
   return { id: model.id };
+}
+
+async function requireModel(projectId: string, modelId: string) {
+  const ctx = await requireStudioProject(projectId);
+  const db = await getDb();
+  const [model] = await db.select().from(s.models3d).where(and(eq(s.models3d.id, uuid.parse(modelId)), eq(s.models3d.projectId, ctx.project.id)));
+  if (!model) throw new Error("That model was not found.");
+  return { ...ctx, model };
+}
+
+/** Swaps in an optimised copy of the model and removes the original file. */
+export async function replaceModelFile(input: { projectId: string; modelId: string; fileId: string }) {
+  const { user, project, model } = await requireModel(input.projectId, input.modelId);
+  const file = await claimUpload(user, project.id, input.fileId);
+  const db = await getDb();
+  const [old] = await db.select().from(s.files).where(eq(s.files.id, model.fileId));
+  await db.update(s.models3d).set({ fileId: file.id, optimized: true }).where(eq(s.models3d.id, model.id));
+  if (old) {
+    await db.delete(s.files).where(eq(s.files.id, old.id));
+    await deleteStored(old.storageKey).catch(() => {});
+  }
+  await audit(user, "optimise", "model", model.id, { before: old?.size, after: file.size });
+  refresh(project.id);
+}
+
+const viewInput = z.object({
+  frontYaw: z.number().min(-360).max(360).optional(),
+  lighting: z.enum(LIGHTING).optional(),
+  exposure: z.number().min(0.3).max(2.5).optional(),
+  opening: z
+    .object({
+      orbit: z.string().regex(/^-?[\d.]+deg -?[\d.]+deg [\d.]+m$/),
+      target: z.string().regex(/^-?[\d.]+m -?[\d.]+m -?[\d.]+m$/),
+    })
+    .optional(),
+});
+
+/** How the model opens for everyone: which side is the front, lighting and exposure. */
+export async function saveModelView(input: { projectId: string; modelId: string; view: ModelView }) {
+  const { user, project, model } = await requireModel(input.projectId, input.modelId);
+  const view = viewInput.parse(input.view);
+  const db = await getDb();
+  await db.update(s.models3d).set({ view: { ...model.view, ...view } }).where(eq(s.models3d.id, model.id));
+  await audit(user, "update_view", "model", model.id);
+  refresh(project.id);
+}
+
+/** A still of the model, shown while it loads, in lists and in link previews. */
+export async function setModelCover(input: { projectId: string; modelId: string; fileId: string }) {
+  const { user, project, model } = await requireModel(input.projectId, input.modelId);
+  const file = await claimUpload(user, project.id, input.fileId);
+  const db = await getDb();
+  const [old] = model.coverFileId ? await db.select().from(s.files).where(eq(s.files.id, model.coverFileId)) : [];
+  await db.update(s.models3d).set({ coverFileId: file.id }).where(eq(s.models3d.id, model.id));
+  if (old) {
+    await db.delete(s.files).where(eq(s.files.id, old.id));
+    await deleteStored(old.storageKey).catch(() => {});
+  }
+  refresh(project.id);
+  return { coverFileId: file.id };
 }
 
 export async function deleteModel(formData: FormData) {
@@ -136,8 +197,13 @@ export async function deleteModel(formData: FormData) {
   if (!model) return;
   const [file] = await db.select().from(s.files).where(eq(s.files.id, model.fileId));
   await db.delete(s.shareLinkItems).where(and(eq(s.shareLinkItems.itemType, "model"), eq(s.shareLinkItems.itemId, id)));
+  const [cover] = model.coverFileId ? await db.select().from(s.files).where(eq(s.files.id, model.coverFileId)) : [];
   await db.delete(s.files).where(eq(s.files.id, model.fileId)); // cascades to the model
   if (file) await deleteStored(file.storageKey).catch(() => {});
+  if (cover) {
+    await db.delete(s.files).where(eq(s.files.id, cover.id));
+    await deleteStored(cover.storageKey).catch(() => {});
+  }
   await audit(user, "delete", "model", id, { title: model.title });
   refresh(project.id);
   redirect(`/projects/${project.id}/models`);
@@ -333,7 +399,7 @@ export async function createShareLink(_: FormState, formData: FormData): Promise
   if (expiresAt && expiresAt < new Date()) return { error: "The expiry date has already passed." };
 
   const db = await getDb();
-  const token = randomBytes(18).toString("base64url");
+  const token = shortToken();
   await db.transaction(async (tx) => {
     const [link] = await tx
       .insert(s.shareLinks)
@@ -380,7 +446,7 @@ export async function getEmbedToken(input: { projectId: string; itemType: s.Shar
   if (item.itemType === "drawing" || item.itemType === "site_updates") throw new Error("Only models and tours can be embedded.");
   const table = item.itemType === "model" ? s.models3d : s.tours;
   const [{ title }] = await db.select({ title: table.title }).from(table).where(eq(table.id, item.itemId));
-  const token = randomBytes(18).toString("base64url");
+  const token = shortToken();
   await db.transaction(async (tx) => {
     const [link] = await tx
       .insert(s.shareLinks)
@@ -389,6 +455,47 @@ export async function getEmbedToken(input: { projectId: string; itemType: s.Shar
     await tx.insert(s.shareLinkItems).values({ shareLinkId: link.id, ...item });
   });
   await audit(user, "create", "embed", item.itemId);
+  refresh(project.id);
+  return token;
+}
+
+/**
+ * A client link for one model or tour: reuses the open, no-passcode link made
+ * for it before, or makes one titled after it.
+ */
+export async function quickShareLink(input: { projectId: string; itemType: "model" | "tour"; itemId: string }) {
+  const { user, project } = await requireShareProject(input.projectId);
+  const [item] = await parseItems(project.id, [`${input.itemType}:${input.itemId}`]);
+  if (!item || item.itemType === "drawing" || item.itemType === "site_updates") throw new Error("That item was not found.");
+  const db = await getDb();
+  const table = item.itemType === "model" ? s.models3d : s.tours;
+  const [{ title }] = await db.select({ title: table.title }).from(table).where(eq(table.id, item.itemId));
+  const linkTitle = `${project.name}: ${title}`;
+
+  const existing = await db
+    .select({ token: s.shareLinks.token, id: s.shareLinks.id })
+    .from(s.shareLinks)
+    .innerJoin(s.shareLinkItems, eq(s.shareLinkItems.shareLinkId, s.shareLinks.id))
+    .where(
+      and(
+        eq(s.shareLinks.projectId, project.id),
+        eq(s.shareLinks.title, linkTitle),
+        isNull(s.shareLinks.revokedAt),
+        isNull(s.shareLinks.passcodeHash),
+        isNull(s.shareLinks.expiresAt),
+        eq(s.shareLinkItems.itemType, item.itemType),
+        eq(s.shareLinkItems.itemId, item.itemId),
+      ),
+    )
+    .limit(1);
+  if (existing[0]) return existing[0].token;
+
+  const token = shortToken();
+  await db.transaction(async (tx) => {
+    const [link] = await tx.insert(s.shareLinks).values({ projectId: project.id, token, title: linkTitle, createdBy: user.id }).returning({ id: s.shareLinks.id });
+    await tx.insert(s.shareLinkItems).values({ shareLinkId: link.id, ...item });
+  });
+  await audit(user, "create", "share_link", token, { title: linkTitle, items: 1 });
   refresh(project.id);
   return token;
 }

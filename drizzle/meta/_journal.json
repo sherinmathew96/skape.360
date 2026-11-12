@@ -50,6 +50,13 @@
       "when": 1794496387576,
       "tag": "0006_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794497566771,
+      "tag": "0007_model_view",
+      "breakpoints": true
     }
   ]
 }

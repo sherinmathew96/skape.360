@@ -4,6 +4,7 @@ import { deleteTour } from "@/app/studio-actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { EmbedCode } from "@/components/embed-code";
 import { ProjectHeader } from "@/components/project-header";
+import { SendToClient } from "@/components/send-to-client";
 import { TourBuilder } from "@/components/tour-builder";
 import { TourViewer } from "@/components/tour-viewer";
 import { requireUser } from "@/lib/auth";
@@ -48,6 +49,13 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
 
       {canShare || manage ? (
         <div className="mt-3 grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          {canShare && tour.scenes.length > 0 ? (
+            <section className="card p-5" aria-labelledby="send-title">
+              <h2 id="send-title" className="card-title mb-1">Send to client</h2>
+              <p className="mb-4 text-muted">A short private link to this tour.</p>
+              <SendToClient projectId={project.id} itemType="tour" itemId={tour.id} title={tour.title} origin={origin} />
+            </section>
+          ) : null}
           {canShare ? (
             <section className="card p-5" aria-labelledby="embed-title">
               <h2 id="embed-title" className="card-title mb-1">Embed on a website</h2>

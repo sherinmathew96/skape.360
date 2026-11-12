@@ -6,6 +6,8 @@ export type ModelRow = {
   id: string;
   title: string;
   fileId: string;
+  coverFileId: string | null;
+  optimized: boolean;
   size: number;
   createdAt: Date;
   createdByName: string | null;
@@ -18,6 +20,8 @@ export async function listModels(projectId: string): Promise<ModelRow[]> {
       id: s.models3d.id,
       title: s.models3d.title,
       fileId: s.models3d.fileId,
+      coverFileId: s.models3d.coverFileId,
+      optimized: s.models3d.optimized,
       size: s.files.size,
       createdAt: s.models3d.createdAt,
       createdByName: s.users.name,
@@ -33,7 +37,16 @@ export async function getModel(projectId: string, modelId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(modelId)) return null;
   const db = await getDb();
   const [row] = await db
-    .select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, size: s.files.size, name: s.files.name })
+    .select({
+      id: s.models3d.id,
+      title: s.models3d.title,
+      fileId: s.models3d.fileId,
+      size: s.files.size,
+      name: s.files.name,
+      optimized: s.models3d.optimized,
+      coverFileId: s.models3d.coverFileId,
+      view: s.models3d.view,
+    })
     .from(s.models3d)
     .innerJoin(s.files, eq(s.files.id, s.models3d.fileId))
     .where(and(eq(s.models3d.projectId, projectId), eq(s.models3d.id, modelId)));

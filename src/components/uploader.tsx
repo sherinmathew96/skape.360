@@ -31,6 +31,7 @@ export function Uploader({
   label,
   onUploaded,
   validate,
+  prepare,
 }: {
   projectId: string | null;
   kind: FileKind;
@@ -39,11 +40,14 @@ export function Uploader({
   onUploaded: (fileId: string, file: File) => Promise<void>;
   /** Runs after files are picked, before uploading; return a message to stop. */
   validate?: () => Promise<string | null>;
+  /** Runs on each file before upload, e.g. to optimise a 3D model; reports progress through onStep. */
+  prepare?: (file: File, onStep: (step: string) => void) => Promise<File>;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState<string | null>(null);
   const info = FILE_KINDS[kind];
 
   async function handle(files: FileList | null) {
@@ -54,7 +58,15 @@ export function Uploader({
       const problem = validate ? await validate() : null;
       if (problem) throw new Error(problem);
       for (const [index, picked] of list.entries()) {
-        const file = kind === "photo" || kind === "receipt" ? await shrinkImage(picked) : picked;
+        let file = kind === "photo" || kind === "receipt" ? await shrinkImage(picked) : picked;
+        if (prepare) {
+          setPreparing("Getting ready…");
+          try {
+            file = await prepare(file, setPreparing);
+          } finally {
+            setPreparing(null);
+          }
+        }
         setProgress({ name: file.name, loaded: 0, total: file.size, index, count: list.length });
         const ticket = await startUpload({ projectId, kind, name: file.name, size: file.size, type: file.type });
         if ("error" in ticket) throw new Error(ticket.error);
@@ -86,7 +98,9 @@ export function Uploader({
         disabled={progress !== null}
         onChange={(e) => handle(e.currentTarget.files)}
       />
-      {progress ? (
+      {preparing ? (
+        <p role="status" aria-live="polite" className="rounded-md border border-border bg-surface p-3">{preparing}</p>
+      ) : progress ? (
         <div role="status" aria-live="polite" className="rounded-md border border-border bg-surface p-3">
           <p className="flex justify-between gap-3">
             <span className="truncate">

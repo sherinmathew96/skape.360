@@ -190,10 +190,16 @@ export default async function SharePage({ params }: Props) {
                 <section key={m.id} aria-labelledby={`m-${m.id}`}>
                   <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4">
                     <h2 id={`m-${m.id}`} className="text-lg font-medium leading-7">{m.title}</h2>
-                    <p className="text-xs text-muted">3D model · drag to turn, pinch to zoom</p>
+                    <p className="text-xs text-muted">3D model · drag to turn, pinch to zoom, or pick a view below</p>
                   </div>
                   <div className="card overflow-hidden">
-                    <ModelViewer src={`${fileBase}${m.fileId}`} title={m.title} className="aspect-[4/3] w-full md:aspect-[16/9]" />
+                    <ModelViewer
+                      src={`${fileBase}${m.fileId}`}
+                      title={m.title}
+                      poster={m.coverFileId ? `${fileBase}${m.coverFileId}` : null}
+                      view={m.view}
+                      className="aspect-[4/5] w-full sm:aspect-[4/3] md:aspect-[16/9]"
+                    />
                   </div>
                 </section>
               );
