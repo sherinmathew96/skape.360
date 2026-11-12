@@ -25,7 +25,17 @@ async function connect(): Promise<Db> {
     const { default: postgres } = await import("postgres");
     const { drizzle } = await import("drizzle-orm/postgres-js");
     // prepare:false keeps Supabase's transaction pooler happy.
-    const client = postgres(url, { prepare: false, max: 5 });
+    // Vercel pauses the function between visits and the pooler drops idle
+    // connections meanwhile; a query sent down such a dead connection hangs
+    // until the network gives up. So close connections soon after use, never
+    // keep one long, and fail fast if a new one can't be opened.
+    const client = postgres(url, {
+      prepare: false,
+      max: 5,
+      idle_timeout: 5,
+      max_lifetime: 60 * 5,
+      connect_timeout: 10,
+    });
     return drizzle(client, { schema }) as unknown as Db;
   }
 
