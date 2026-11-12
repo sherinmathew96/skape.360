@@ -325,6 +325,25 @@ export const tourHotspots = pgTable(
 export const DISCIPLINES = ["architectural", "structural", "mep", "interior", "landscape"] as const;
 export type Discipline = (typeof DISCIPLINES)[number];
 
+/** Where a drawing stands in the studio's workflow: the status column clients follow. */
+export const DRAWING_STATUSES = ["design_discussion", "pending", "revision", "production", "on_hold", "completed"] as const;
+export type DrawingStatus = (typeof DRAWING_STATUSES)[number];
+
+/** A heading in a project's drawing register: "General drawings", "Room 01", "Master bedroom" … */
+export const drawingGroups = pgTable(
+  "drawing_groups",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("drawing_groups_project_idx").on(t.projectId, t.position)],
+);
+
 export const drawings = pgTable(
   "drawings",
   {
@@ -332,14 +351,24 @@ export const drawings = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    /** The studio's sheet number, e.g. A-101 */
-    number: text("number").notNull(),
+    /** Null means the register's ungrouped "General" list */
+    groupId: uuid("group_id").references(() => drawingGroups.id, { onDelete: "set null" }),
+    /** The studio's sheet number, e.g. A-101; optional */
+    number: text("number"),
     title: text("title").notNull(),
     discipline: text("discipline").$type<Discipline>().notNull(),
+    status: text("status").$type<DrawingStatus>().notNull().default("pending"),
+    /** Order within its group */
+    position: integer("position").notNull().default(0),
+    /** Who is drawing it; they can update it even without studio rights */
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    /** Shown on client links that include the drawing register */
+    clientVisible: boolean("client_visible").notNull().default(true),
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (t) => [index("drawings_project_idx").on(t.projectId, t.number)],
+  (t) => [index("drawings_project_idx").on(t.projectId, t.number), index("drawings_group_idx").on(t.groupId, t.position)],
 );
 
 /**
@@ -777,8 +806,8 @@ export const expenses = pgTable(
   (t) => [index("expenses_project_idx").on(t.projectId), index("expenses_date_idx").on(t.spentOn)],
 );
 
-/** "site_updates" shares a project's client-visible site reports; its item id is the project id. */
-export const SHARE_ITEM_TYPES = ["model", "tour", "drawing", "site_updates"] as const;
+/** "site_updates" and "drawing_register" share a whole project section; their item id is the project id. */
+export const SHARE_ITEM_TYPES = ["model", "tour", "drawing", "site_updates", "drawing_register"] as const;
 export type ShareItemType = (typeof SHARE_ITEM_TYPES)[number];
 
 /**

@@ -66,7 +66,9 @@ export async function startUpload(input: {
   } else if (input.projectId === null) {
     throw new Error("Choose a project first.");
   } else {
-    ({ user, project } = input.kind === "photo" ? await requireProjectMember(input.projectId) : await requireStudioProject(input.projectId));
+    // Site photos and drawings come from the project's team; other studio files need studio rights.
+    ({ user, project } =
+      input.kind === "photo" || input.kind === "drawing" ? await requireProjectMember(input.projectId) : await requireStudioProject(input.projectId));
   }
   const kind = FILE_KINDS[input.kind];
   if (!kind) return { error: "Unknown file kind." };
@@ -361,7 +363,7 @@ async function parseItems(projectId: string, raw: string[]) {
     const [type, id] = value.split(":");
     const itemType = z.enum(SHARE_ITEM_TYPES).parse(type);
     const itemId = uuid.parse(id);
-    if (itemType === "site_updates") {
+    if (itemType === "site_updates" || itemType === "drawing_register") {
       // Site progress is the project itself.
       if (itemId === projectId) items.push({ itemType, itemId });
       continue;
@@ -443,7 +445,7 @@ export async function getEmbedToken(input: { projectId: string; itemType: s.Shar
   if (existing) return existing;
 
   const db = await getDb();
-  if (item.itemType === "drawing" || item.itemType === "site_updates") throw new Error("Only models and tours can be embedded.");
+  if (item.itemType === "drawing" || item.itemType === "site_updates" || item.itemType === "drawing_register") throw new Error("Only models and tours can be embedded.");
   const table = item.itemType === "model" ? s.models3d : s.tours;
   const [{ title }] = await db.select({ title: table.title }).from(table).where(eq(table.id, item.itemId));
   const token = shortToken();
@@ -466,7 +468,7 @@ export async function getEmbedToken(input: { projectId: string; itemType: s.Shar
 export async function quickShareLink(input: { projectId: string; itemType: "model" | "tour"; itemId: string }) {
   const { user, project } = await requireShareProject(input.projectId);
   const [item] = await parseItems(project.id, [`${input.itemType}:${input.itemId}`]);
-  if (!item || item.itemType === "drawing" || item.itemType === "site_updates") throw new Error("That item was not found.");
+  if (!item || (item.itemType !== "model" && item.itemType !== "tour")) throw new Error("That item was not found.");
   const db = await getDb();
   const table = item.itemType === "model" ? s.models3d : s.tours;
   const [{ title }] = await db.select({ title: table.title }).from(table).where(eq(table.id, item.itemId));

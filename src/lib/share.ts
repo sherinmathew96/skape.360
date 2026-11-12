@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema as s } from "@/db";
-import { clientDrawings, type ClientDrawing } from "./drawings";
+import { clientDrawings, clientRegister, type ClientDrawing } from "./drawings";
 import { clientSiteUpdates } from "./site";
 import { getTours, type TourData } from "./studio";
 
@@ -53,6 +53,7 @@ export async function loadSharedItems(linkId: string): Promise<{
   tours: TourData[];
   drawings: ClientDrawing[];
   siteUpdates: Awaited<ReturnType<typeof clientSiteUpdates>>;
+  register: Awaited<ReturnType<typeof clientRegister>>;
   order: { itemType: s.ShareItemType; itemId: string }[];
 }> {
   const db = await getDb();
@@ -65,25 +66,28 @@ export async function loadSharedItems(linkId: string): Promise<{
   const tourIds = order.filter((i) => i.itemType === "tour").map((i) => i.itemId);
   const drawingIds = order.filter((i) => i.itemType === "drawing").map((i) => i.itemId);
   const siteProject = order.find((i) => i.itemType === "site_updates")?.itemId;
-  const [models, tours, drawings, siteUpdates] = await Promise.all([
+  const registerProject = order.find((i) => i.itemType === "drawing_register")?.itemId;
+  const [models, tours, drawings, siteUpdates, register] = await Promise.all([
     modelIds.length
       ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, coverFileId: s.models3d.coverFileId, view: s.models3d.view }).from(s.models3d).where(inArray(s.models3d.id, modelIds))
       : Promise.resolve([]),
     getTours(tourIds),
     clientDrawings(drawingIds),
     siteProject ? clientSiteUpdates(siteProject) : Promise.resolve([]),
+    registerProject ? clientRegister(registerProject) : Promise.resolve([]),
   ]);
-  return { models, tours, drawings, siteUpdates, order };
+  return { models, tours, drawings, siteUpdates, register, order };
 }
 
 /** Is this file part of something the link shares? */
 export async function isSharedFile(linkId: string, fileId: string) {
-  const { models, tours, drawings, siteUpdates } = await loadSharedItems(linkId);
+  const { models, tours, drawings, siteUpdates, register } = await loadSharedItems(linkId);
   return (
     models.some((m) => m.fileId === fileId || m.coverFileId === fileId) ||
     tours.some((t) => t.scenes.some((sc) => sc.fileId === fileId)) ||
     drawings.some((d) => d.revision.fileId === fileId) ||
-    siteUpdates.some((r) => r.photos.some((p) => p.fileId === fileId))
+    siteUpdates.some((r) => r.photos.some((p) => p.fileId === fileId)) ||
+    register.some((g) => g.drawings.some((d) => d.revision?.fileId === fileId))
   );
 }
 

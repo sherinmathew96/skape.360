@@ -57,6 +57,13 @@
       "when": 1794497566771,
       "tag": "0007_model_view",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794499844835,
+      "tag": "0008_drawing_register",
+      "breakpoints": true
     }
   ]
 }

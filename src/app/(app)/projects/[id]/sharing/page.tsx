@@ -33,9 +33,10 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
   ]);
   const itemTitle = (type: string, id: string) => {
     if (type === "site_updates") return "Site progress updates";
+    if (type === "drawing_register") return "Drawing register";
     if (type === "drawing") {
       const d = drawings.find((x) => x.id === id);
-      return d ? `${d.number} ${d.title}` : undefined;
+      return d ? [d.number, d.title].filter(Boolean).join(" ") : undefined;
     }
     return type === "model" ? models.find((m) => m.id === id)?.title : tours.find((t) => t.id === id)?.title;
   };
@@ -45,7 +46,8 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
     ...(project.type !== "design"
       ? [{ value: `site_updates:${project.id}`, label: "Site progress updates", kind: "Reports marked for the client" }]
       : []),
-    ...drawings.map((d) => ({ value: `drawing:${d.id}`, label: `${d.number} ${d.title}`, kind: "Drawing" })),
+    { value: `drawing_register:${project.id}`, label: "Drawing register", kind: "Live status and current revisions" },
+    ...drawings.map((d) => ({ value: `drawing:${d.id}`, label: [d.number, d.title].filter(Boolean).join(" "), kind: "Drawing" })),
     ...models.map((m) => ({ value: `model:${m.id}`, label: m.title, kind: "3D model" })),
     ...tours.filter((t) => t.scenes > 0).map((t) => ({ value: `tour:${t.id}`, label: t.title, kind: "360° tour" })),
   ];

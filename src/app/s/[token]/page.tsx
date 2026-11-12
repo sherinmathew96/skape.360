@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { unlockShare } from "@/app/studio-actions";
 import { ActionForm } from "@/components/action-form";
 import { ClientDecision } from "@/components/client-decision";
+import { ClientRegister } from "@/components/client-register";
 import { DrawingViewer } from "@/components/drawing-viewer";
 import { Mark } from "@/components/mark";
 import { ModelViewer } from "@/components/model-viewer";
@@ -77,7 +78,7 @@ export default async function SharePage({ params }: Props) {
     );
   }
 
-  const [{ models, tours, drawings, siteUpdates, order }] = await Promise.all([loadSharedItems(link.id), logShareView(link.id, "page")]);
+  const [{ models, tours, drawings, siteUpdates, register, order }] = await Promise.all([loadSharedItems(link.id), logShareView(link.id, "page")]);
   const fileBase = `/s/${token}/f/`;
 
   return (
@@ -138,6 +139,22 @@ export default async function SharePage({ params }: Props) {
                 </section>
               );
             }
+            if (item.itemType === "drawing_register") {
+              const count = register.reduce((n, g) => n + g.drawings.length, 0);
+              return (
+                <section key="register" aria-labelledby="drawing-register">
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4">
+                    <h2 id="drawing-register" className="text-lg font-medium leading-7">Drawings</h2>
+                    <p className="text-xs text-muted">{count ? `${count} ${count === 1 ? "drawing" : "drawings"} · status updated by the studio` : ""}</p>
+                  </div>
+                  {count === 0 ? (
+                    <p className="empty">No drawings listed yet. They will appear here with their status.</p>
+                  ) : (
+                    <ClientRegister register={register} token={token} fileBase={fileBase} />
+                  )}
+                </section>
+              );
+            }
             if (item.itemType === "drawing") {
               const d = drawings.find((x) => x.id === item.itemId);
               if (!d) return null;
@@ -153,7 +170,7 @@ export default async function SharePage({ params }: Props) {
                   </div>
                   <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                     <div className="card overflow-hidden">
-                      <DrawingViewer src={`${fileBase}${rev.fileId}`} contentType={rev.contentType} title={`${d.number} ${d.title} ${label}`} />
+                      <DrawingViewer src={`${fileBase}${rev.fileId}`} contentType={rev.contentType} title={`${[d.number, d.title].filter(Boolean).join(" ")} ${label}`} />
                     </div>
                     <div className="card p-5">
                       {rev.note ? (
