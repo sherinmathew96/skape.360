@@ -36,6 +36,27 @@ export function checkSlug(slug: string): string | null {
   return null;
 }
 
+/** Is this address already used by another portal or a firm? */
+export async function slugTaken(slug: string, except: { portalId?: string; firmId?: string } = {}) {
+  const db = await getDb();
+  const [portal] = await db.select({ id: s.clientPortals.id }).from(s.clientPortals).where(eq(s.clientPortals.slug, slug));
+  if (portal && portal.id !== except.portalId) return true;
+  const [firm] = await db.select({ id: s.firms.id }).from(s.firms).where(eq(s.firms.slug, slug));
+  return Boolean(firm && firm.id !== except.firmId);
+}
+
+export const firmCookieName = (firmId: string) => `skape_firm_${firmId.replaceAll("-", "")}`;
+export const firmCookieValue = (firmId: string, slug: string, passcodeHash: string) =>
+  createHash("sha256").update(`firm:${firmId}:${slug}:${passcodeHash}`).digest("base64url");
+
+/** Has this visitor opened the firm's page (or does it need no passcode)? */
+export async function hasFirmAccess(firm: { id: string; slug: string; enabled: boolean; passcodeHash: string | null } | null) {
+  if (!firm || !firm.enabled) return false;
+  if (!firm.passcodeHash) return true;
+  const cookie = (await cookies()).get(firmCookieName(firm.id))?.value;
+  return cookie === firmCookieValue(firm.id, firm.slug, firm.passcodeHash);
+}
+
 export const portalCookieName = (portalId: string) => `skape_portal_${portalId.replaceAll("-", "")}`;
 export const portalCookieValue = (portalId: string, slug: string, passcodeHash: string) =>
   createHash("sha256").update(`portal:${portalId}:${slug}:${passcodeHash}`).digest("base64url");
@@ -66,15 +87,27 @@ export const loadPortal = cache(async (rawSlug: string) => {
       startDate: s.projects.startDate,
       dueDate: s.projects.dueDate,
       clientName: s.clients.name,
+      firmId: s.firms.id,
+      firmSlug: s.firms.slug,
+      firmName: s.firms.name,
+      firmEnabled: s.firms.enabled,
+      firmPasscodeHash: s.firms.passcodeHash,
     })
     .from(s.clientPortals)
     .innerJoin(s.projects, eq(s.projects.id, s.clientPortals.projectId))
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
+    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
     .where(and(eq(s.clientPortals.slug, slug), isNull(s.projects.deletedAt)));
   if (!portal || !portal.enabled) return { state: "missing" as const, portal: null };
   if (portal.passcodeHash) {
     const cookie = (await cookies()).get(portalCookieName(portal.id))?.value;
-    if (cookie !== portalCookieValue(portal.id, portal.slug, portal.passcodeHash)) return { state: "locked" as const, portal };
+    const own = cookie === portalCookieValue(portal.id, portal.slug, portal.passcodeHash);
+    // The firm the project was done for opens it from the firm's page.
+    const viaFirm =
+      !own &&
+      portal.firmId !== null &&
+      (await hasFirmAccess({ id: portal.firmId, slug: portal.firmSlug!, enabled: portal.firmEnabled!, passcodeHash: portal.firmPasscodeHash }));
+    if (!own && !viaFirm) return { state: "locked" as const, portal };
   }
   return { state: "ok" as const, portal };
 });

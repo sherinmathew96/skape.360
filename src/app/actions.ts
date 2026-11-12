@@ -14,6 +14,7 @@ import {
   type SessionUser,
 } from "@/lib/auth";
 import { getProject, isProjectMember } from "@/lib/data";
+import { ensurePortal } from "@/lib/firms";
 import { today } from "@/lib/dates";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { can } from "@/lib/permissions";
@@ -89,6 +90,7 @@ const projectInput = z.object({
   startDate: optionalDate,
   dueDate: optionalDate,
   leadId: uuid,
+  firmId: z.union([uuid, z.literal("")]).default(""),
 });
 
 export async function createProject(_: FormState, formData: FormData): Promise<FormState> {
@@ -136,6 +138,7 @@ export async function createProject(_: FormState, formData: FormData): Promise<F
         startDate: input.startDate,
         dueDate: input.dueDate,
         leadId: input.leadId,
+        firmId: input.firmId || null,
         createdBy: user.id,
       })
       .returning({ id: s.projects.id });
@@ -157,6 +160,8 @@ export async function createProject(_: FormState, formData: FormData): Promise<F
   });
 
   await audit(user, "create", "project", id);
+  // A project for a firm shows on the firm's page straight away.
+  if (input.firmId) await ensurePortal(id, user.id);
   revalidatePath("/", "layout");
   redirect(`/projects/${id}`);
 }

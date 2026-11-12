@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const myOverdue = mine.filter((task) => task.dueDate && task.dueDate < t).length;
 
   const office: OfficeLink[] = [];
+  if (can(user.role, "projects.create")) office.push("firms");
   if (can(user.role, "finance.view")) office.push("finance");
   const buyer = can(user.role, "procurement.manage");
   if (buyer || can(user.role, "procurement.prices")) office.push("purchasing");

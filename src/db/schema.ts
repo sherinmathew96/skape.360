@@ -121,6 +121,8 @@ export const projects = pgTable(
     startDate: date("start_date"),
     dueDate: date("due_date"),
     leadId: uuid("lead_id").references(() => users.id, { onDelete: "set null" }),
+    /** The contractor or PMC the studio did this project for, if any */
+    firmId: uuid("firm_id").references(() => firms.id, { onDelete: "set null" }),
     notes: text("notes"),
     /** The agreed professional fee, before GST */
     fee: numeric("fee", { precision: 14, scale: 2 }),
@@ -130,7 +132,7 @@ export const projects = pgTable(
     createdAt: createdAt(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (t) => [index("projects_status_idx").on(t.status)],
+  (t) => [index("projects_status_idx").on(t.status), index("projects_firm_idx").on(t.firmId)],
 );
 
 export const projectMembers = pgTable(
@@ -897,4 +899,24 @@ export const clientPortals = pgTable("client_portals", {
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Firms: contractors and PMCs the studio designs for ─────────────────────
+// Each firm has its own page at 360.studioskape.in/<slug> listing the
+// projects done for it; its passcode also opens those projects' portals.
+
+export const firms = pgTable("firms", {
+  id: id(),
+  name: text("name").notNull(),
+  /** The address: lowercase letters, numbers and hyphens, e.g. "curves-and-lines" */
+  slug: text("slug").notNull().unique(),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  enabled: boolean("enabled").notNull().default(true),
+  passcodeHash: text("passcode_hash"),
+  views: integer("views").notNull().default(0),
+  lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
 });

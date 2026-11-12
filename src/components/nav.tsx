@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, FolderKanban, IndianRupee, LayoutDashboard, ListChecks, Settings, ShoppingCart, Truck, Users } from "lucide-react";
+import { Building2, ChevronRight, FolderKanban, IndianRupee, LayoutDashboard, ListChecks, Settings, ShoppingCart, Truck, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -13,6 +13,7 @@ const ITEMS = [
 
 /** Office pages, shown in the sidebar to the roles that use them. */
 const OFFICE = {
+  firms: { href: "/firms", label: "Firms", icon: Building2 },
   finance: { href: "/finance", label: "Finance", icon: IndianRupee },
   purchasing: { href: "/purchasing", label: "Purchasing", icon: ShoppingCart },
   suppliers: { href: "/suppliers", label: "Suppliers", icon: Truck },

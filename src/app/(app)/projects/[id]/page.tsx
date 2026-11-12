@@ -16,7 +16,9 @@ import { currentStage } from "@/components/stage-track";
 import { StatusPill } from "@/components/status-pill";
 import { TaskList } from "@/components/task-list";
 import { requireUser } from "@/lib/auth";
+import { setProjectFirm } from "@/app/firm-actions";
 import { getProject, listStaff } from "@/lib/data";
+import { listFirms } from "@/lib/firms";
 import { formatDate, formatDue, today } from "@/lib/dates";
 import { can, ROLE_LABEL } from "@/lib/permissions";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
@@ -45,12 +47,15 @@ export default async function ProjectPage({ params }: Props) {
   const done = tasks.filter((task) => task.status === "done");
   const late = open.filter((task) => task.dueDate && task.dueDate < t).length;
   const staff = canEdit ? (await listStaff()).filter((p) => p.active && !members.some((m) => m.id === p.id)) : [];
+  const firms = canEdit ? await listFirms() : [];
 
   return (
     <div className="mx-auto max-w-[1136px]">
       <ProjectHeader
         project={project}
-        subtitle={[PROJECT_TYPE_LABEL[project.type], project.clientName, project.location].filter(Boolean).join(" · ")}
+        subtitle={[PROJECT_TYPE_LABEL[project.type], project.clientName, project.location, project.firmName ? `for ${project.firmName}` : null]
+          .filter(Boolean)
+          .join(" · ")}
         badge={project.status !== "active" ? <StatusPill status={project.status} /> : null}
         actions={
           canEdit && inProgress ? (
@@ -209,6 +214,27 @@ export default async function ProjectPage({ params }: Props) {
               </div>
             ) : null}
           </section>
+
+          {canEdit ? (
+            <section className="card p-5" aria-labelledby="firm-title">
+              <h2 id="firm-title" className="card-title mb-1">Firm</h2>
+              <p className="mb-4 text-muted">
+                {project.firmName ? `Done for ${project.firmName}; it shows on their page.` : "A direct client. Pick the contractor or PMC if you did it for one."}
+              </p>
+              <ActionForm key={project.firmId ?? "none"} action={setProjectFirm} submitLabel="Save" pendingLabel="Saving…" primary={false} className="space-y-3">
+                <input type="hidden" name="projectId" value={project.id} />
+                <div>
+                  <label htmlFor="project-firm" className="sr-only">Firm</label>
+                  <select id="project-firm" name="firmId" defaultValue={project.firmId ?? ""} className="field">
+                    <option value="">No firm, a direct client</option>
+                    {firms.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </ActionForm>
+            </section>
+          ) : null}
 
           <section className="card" aria-labelledby="team-title">
             <h2 id="team-title" className="card-title px-5 pb-2 pt-4">Team</h2>

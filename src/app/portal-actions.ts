@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, count, eq, gt, ne } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { requirePermission } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { checkSlug, loadPortal, portalCookieName, portalCookieValue } from "@/lib/portal";
+import { checkSlug, loadPortal, portalCookieName, portalCookieValue, slugTaken } from "@/lib/portal";
 import { claimUploadedFile } from "@/lib/uploads";
 import type { FormState } from "./actions";
 
@@ -45,11 +45,7 @@ export async function savePortal(_: FormState, formData: FormData): Promise<Form
 
   const db = await getDb();
   const [existing] = await db.select().from(s.clientPortals).where(eq(s.clientPortals.projectId, project.id));
-  const [clash] = await db
-    .select({ id: s.clientPortals.id })
-    .from(s.clientPortals)
-    .where(and(eq(s.clientPortals.slug, v.slug), ne(s.clientPortals.projectId, project.id)));
-  if (clash) return { error: `360.studioskape.in/${v.slug} is taken by another project.` };
+  if (await slugTaken(v.slug, { portalId: existing?.id })) return { error: `360.studioskape.in/${v.slug} is already used by another project or firm.` };
 
   let passcodeHash = existing?.passcodeHash ?? null;
   if (v.access === "set" || (!existing && v.access === "keep")) {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Mark } from "@/components/mark";
 import { PortalTabs, type PortalTab } from "@/components/portal-tabs";
-import { loadPortal, portalContent } from "@/lib/portal";
+import { hasFirmAccess, loadPortal, portalContent } from "@/lib/portal";
 
 /** The client's dashboard: the project's name on top, then a tab for each part the studio shares. */
 export default async function PortalInside({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -13,6 +13,9 @@ export default async function PortalInside({ children, params }: { children: Rea
   const { models, tours, register, siteUpdates } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const on = portal.sections;
+  const viaFirm =
+    portal.firmId !== null &&
+    (await hasFirmAccess({ id: portal.firmId, slug: portal.firmSlug!, enabled: portal.firmEnabled!, passcodeHash: portal.firmPasscodeHash }));
   const waiting = register.flatMap((g) => g.drawings).filter((d) => d.revision?.status === "issued").length;
 
   const tabs: PortalTab[] = [
@@ -32,7 +35,13 @@ export default async function PortalInside({ children, params }: { children: Rea
               <Mark size={24} />
               <span className="truncate font-medium">{portal.projectName}</span>
             </Link>
-            <span className="flex-none text-xs text-muted">Studio Skape</span>
+            {viaFirm ? (
+              <Link href={`/${portal.firmSlug}`} className="flex-none text-sm font-medium text-primary hover:underline">
+                All {portal.firmName} projects
+              </Link>
+            ) : (
+              <span className="flex-none text-xs text-muted">Studio Skape</span>
+            )}
           </div>
           <PortalTabs tabs={tabs} />
         </div>

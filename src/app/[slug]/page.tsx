@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { unlockPortal } from "@/app/portal-actions";
 import { ActionForm } from "@/components/action-form";
+import { FirmLocked, FirmProjects } from "@/components/firm-view";
 import { Mark } from "@/components/mark";
-import { loadPortal, logPortalView, portalContent, type Portal } from "@/lib/portal";
+import { firmProjects, loadFirm, logFirmView } from "@/lib/firms";
+import { hasFirmAccess, loadPortal, logPortalView, portalContent, type Portal } from "@/lib/portal";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -14,9 +16,11 @@ const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeri
 const month = (d: string | null) => (d ? monthFmt.format(new Date(`${d}T00:00:00Z`)) : null);
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { portal } = await loadPortal((await params).slug);
+  const { slug } = await params;
+  const { portal } = await loadPortal(slug);
+  const firm = portal ? null : (await loadFirm(slug)).firm;
   return {
-    title: { absolute: portal ? `${portal.projectName} · Studio Skape` : "Studio Skape" },
+    title: { absolute: portal ? `${portal.projectName} · Studio Skape` : firm ? `${firm.name} · Studio Skape` : "Studio Skape" },
     robots: { index: false, follow: false },
     referrer: "no-referrer",
   };
@@ -26,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * One screen: the cover image fills the left pane, the project's details and
  * the way in sit on the right. On a phone the image runs across the top.
  */
-function Split({ portal, src, children }: { portal: Portal; src: string | null; children: React.ReactNode }) {
+function Split({ portal, src, back, children }: { portal: Portal; src: string | null; back?: { href: string; label: string } | null; children: React.ReactNode }) {
   return (
     <main className="grid min-h-svh grid-cols-1 bg-surface text-text md:h-svh md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
       <div className="relative h-[42svh] bg-[#2b2a28] md:h-full">
@@ -36,10 +40,17 @@ function Split({ portal, src, children }: { portal: Portal; src: string | null; 
         ) : null}
       </div>
       <div className="flex min-w-0 flex-col px-5 pb-8 pt-6 md:overflow-y-auto md:px-12 md:pb-10 md:pt-10 xl:px-16">
-        <p className="flex items-center gap-2.5 text-[15px] font-medium">
-          <Mark size={24} />
-          Studio Skape
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="flex items-center gap-2.5 text-[15px] font-medium">
+            <Mark size={24} />
+            Studio Skape
+          </p>
+          {back ? (
+            <Link href={back.href} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+              <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" /> {back.label}
+            </Link>
+          ) : null}
+        </div>
         <div className="flex flex-1 flex-col justify-center py-10 md:py-12">{children}</div>
         <p className="text-[13px] text-muted">Shared privately by Studio Skape, Kochi. Please do not forward this address.</p>
       </div>
@@ -53,10 +64,22 @@ export default async function PortalCover({ params }: Props) {
   const { slug } = await params;
   if (slug !== slug.toLowerCase()) redirect(`/${slug.toLowerCase()}`);
   const { state, portal } = await loadPortal(slug);
-  if (!portal) notFound();
+  if (!portal) {
+    // Not a project: perhaps a firm's page listing its projects.
+    const found = await loadFirm(slug);
+    if (!found.firm) notFound();
+    if (found.state === "locked") return <FirmLocked name={found.firm.name} slug={found.firm.slug} />;
+    const [projects] = await Promise.all([firmProjects(found.firm.id), logFirmView(found.firm.id)]);
+    return <FirmProjects name={found.firm.name} projects={projects} />;
+  }
 
   const base = `/${portal.slug}`;
   const coverSrc = portal.coverFileId ? `${base}/f/${portal.coverFileId}` : null;
+  // Came from the firm's page: a way back to all its projects.
+  const back =
+    portal.firmId && (await hasFirmAccess({ id: portal.firmId, slug: portal.firmSlug!, enabled: portal.firmEnabled!, passcodeHash: portal.firmPasscodeHash }))
+      ? { href: `/${portal.firmSlug}`, label: `All ${portal.firmName} projects` }
+      : null;
 
   // Before the passcode: the cover and the name only, nothing about the client.
   if (state === "locked") {
@@ -109,7 +132,7 @@ export default async function PortalCover({ params }: Props) {
   ].filter((i): i is { href: string; label: string; note: string | null } => i !== null);
 
   return (
-    <Split portal={portal} src={coverSrc}>
+    <Split portal={portal} src={coverSrc} back={back}>
       <h1 className={nameClass}>{portal.projectName}</h1>
       {portal.brief ? <p className="mt-5 max-w-[44ch] text-lg leading-7">{portal.brief}</p> : null}
 

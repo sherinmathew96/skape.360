@@ -26,6 +26,8 @@ export type ProjectRow = {
   dueDate: string | null;
   clientName: string;
   leadName: string | null;
+  firmId: string | null;
+  firmName: string | null;
   stages: Stage[];
   tasksOpen: number;
   tasksDone: number;
@@ -45,10 +47,13 @@ export async function listProjects(user: SessionUser): Promise<ProjectRow[]> {
       dueDate: s.projects.dueDate,
       clientName: s.clients.name,
       leadName: s.users.name,
+      firmId: s.projects.firmId,
+      firmName: s.firms.name,
     })
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
     .leftJoin(s.users, eq(s.users.id, s.projects.leadId))
+    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
     .where(visibleProjects(user))
     .orderBy(asc(s.projects.code));
 
@@ -177,9 +182,12 @@ export async function getProject(user: SessionUser, id: string) {
       leadId: s.projects.leadId,
       clientName: s.clients.name,
       clientPhone: s.clients.phone,
+      firmId: s.projects.firmId,
+      firmName: s.firms.name,
     })
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
+    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
     .where(and(visibleProjects(user), eq(s.projects.id, id)));
   if (!project) return null;
 

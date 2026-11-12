@@ -5,6 +5,7 @@ import { createProject } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { requireUser } from "@/lib/auth";
 import { listClients, listStaff } from "@/lib/data";
+import { listFirms } from "@/lib/firms";
 import { today } from "@/lib/dates";
 import { can, ROLE_LABEL } from "@/lib/permissions";
 import { PROJECT_TYPE_LABEL, STAGE_TEMPLATES } from "@/lib/stages";
@@ -16,7 +17,7 @@ export default async function NewProjectPage() {
   const user = await requireUser();
   if (!can(user.role, "projects.create")) redirect("/projects");
 
-  const [clients, staff] = await Promise.all([listClients(), listStaff()]);
+  const [clients, staff, firms] = await Promise.all([listClients(), listStaff(), listFirms()]);
   const leads = staff.filter((p) => p.active);
 
   return (
@@ -70,6 +71,20 @@ export default async function NewProjectPage() {
                 <p id="client-help" className="mt-2 text-xs text-muted">Only used when Client is set to New client.</p>
               </div>
             </fieldset>
+
+            <div>
+              <label htmlFor="firmId" className="field-label">Done for a firm</label>
+              <select id="firmId" name="firmId" defaultValue="" aria-describedby="firm-help" className="field">
+                <option value="">No, a direct client</option>
+                {firms.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+              <p id="firm-help" className="mt-2 text-xs text-muted">
+                For a contractor or PMC you design for. The project then shows on the firm&rsquo;s own page.{" "}
+                <Link href="/firms" className="font-medium text-primary hover:underline">Add a firm</Link>
+              </p>
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div>

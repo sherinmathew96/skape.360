@@ -84,6 +84,7 @@ export default async function OverviewPage() {
       code: p.code,
       name: p.name,
       clientName: p.clientName,
+      firmName: p.firmName,
       location: p.location,
       stage: stage.name,
       stageProgress: `${stage.approved} of ${stage.total} approved`,

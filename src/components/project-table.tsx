@@ -9,6 +9,7 @@ export type ProjectTableRow = {
   code: string;
   name: string;
   clientName: string;
+  firmName: string | null;
   location: string | null;
   stage: string;
   stageProgress: string;
@@ -32,7 +33,7 @@ export function ProjectTable({ rows, title, subtitle }: { rows: ProjectTableRow[
   const [sort, setSort] = useState<SortKey>("due");
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q ? rows.filter((r) => [r.name, r.clientName, r.code, r.location ?? "", r.stage].some((v) => v.toLowerCase().includes(q))) : rows;
+    const list = q ? rows.filter((r) => [r.name, r.clientName, r.firmName ?? "", r.code, r.location ?? "", r.stage].some((v) => v.toLowerCase().includes(q))) : rows;
     return [...list].sort(SORTS[sort].by);
   }, [rows, query, sort]);
 
@@ -86,7 +87,10 @@ export function ProjectTable({ rows, title, subtitle }: { rows: ProjectTableRow[
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{r.name}</span>
-                      <span className="block truncate text-xs leading-5 text-muted">{r.clientName}</span>
+                      <span className="block truncate text-xs leading-5 text-muted">
+                        {r.clientName}
+                        {r.firmName ? ` · for ${r.firmName}` : ""}
+                      </span>
                     </span>
                     <span className={`pill ${r.status.tone}`}>{r.status.label}</span>
                   </span>
@@ -121,7 +125,10 @@ export function ProjectTable({ rows, title, subtitle }: { rows: ProjectTableRow[
                       </Link>
                       <span className="block text-xs text-muted">{r.code}</span>
                     </td>
-                    <td>{r.clientName}</td>
+                    <td>
+                      {r.clientName}
+                      {r.firmName ? <span className="block text-xs text-muted">for {r.firmName}</span> : null}
+                    </td>
                     <td>
                       {r.stage}
                       <span className="block text-xs text-muted">{r.stageProgress}</span>
