@@ -9,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -370,7 +371,86 @@ export const approvals = pgTable(
   (t) => [index("approvals_revision_idx").on(t.revisionId)],
 );
 
-export const SHARE_ITEM_TYPES = ["model", "tour", "drawing"] as const;
+// ── Construction: daily site reports and snags ──────────────────────────────
+
+export const WEATHER = ["sunny", "cloudy", "rain", "heavy_rain"] as const;
+export type Weather = (typeof WEATHER)[number];
+
+export type LabourLine = { trade: string; count: number };
+
+/** One report per project per day, written on site. */
+export const siteReports = pgTable(
+  "site_reports",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    weather: text("weather").$type<Weather>().notNull(),
+    labour: jsonb("labour").$type<LabourLine[]>().notNull().default([]),
+    workDone: text("work_done").notNull(),
+    /** Internal only: never shown on client links */
+    issues: text("issues"),
+    /** Shown on client links that include site progress */
+    clientVisible: boolean("client_visible").notNull().default(false),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("site_reports_project_date_idx").on(t.projectId, t.date)],
+);
+
+export const siteReportPhotos = pgTable(
+  "site_report_photos",
+  {
+    id: id(),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => siteReports.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id, { onDelete: "cascade" }),
+    caption: text("caption"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("report_photos_report_idx").on(t.reportId)],
+);
+
+/** open → fixed (by whoever fixes it) → closed (checked), or back to open. */
+export const SNAG_STATUSES = ["open", "fixed", "closed"] as const;
+export type SnagStatus = (typeof SNAG_STATUSES)[number];
+
+export const snags = pgTable(
+  "snags",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… within the project, shown as S-001 */
+    number: integer("number").notNull(),
+    title: text("title").notNull(),
+    location: text("location"),
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    dueDate: date("due_date"),
+    status: text("status").$type<SnagStatus>().notNull().default("open"),
+    photoFileId: uuid("photo_file_id").references(() => files.id, { onDelete: "set null" }),
+    fixPhotoFileId: uuid("fix_photo_file_id").references(() => files.id, { onDelete: "set null" }),
+    fixNote: text("fix_note"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    fixedAt: timestamp("fixed_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("snags_project_number_idx").on(t.projectId, t.number),
+    index("snags_status_idx").on(t.projectId, t.status),
+  ],
+);
+
+/** "site_updates" shares a project's client-visible site reports; its item id is the project id. */
+export const SHARE_ITEM_TYPES = ["model", "tour", "drawing", "site_updates"] as const;
 export type ShareItemType = (typeof SHARE_ITEM_TYPES)[number];
 
 /**

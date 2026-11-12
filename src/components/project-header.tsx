@@ -9,7 +9,7 @@ export function ProjectHeader({
   actions,
   badge,
 }: {
-  project: { id: string; code: string; name: string };
+  project: { id: string; code: string; name: string; type?: string };
   subtitle?: string;
   crumbs?: { href: string; label: string }[];
   actions?: React.ReactNode;
@@ -37,7 +37,7 @@ export function ProjectHeader({
         </div>
         {actions}
       </div>
-      <ProjectTabs projectId={project.id} />
+      <ProjectTabs projectId={project.id} construction={project.type !== "design"} />
     </div>
   );
 }

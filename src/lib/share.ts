@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema as s } from "@/db";
 import { clientDrawings, type ClientDrawing } from "./drawings";
+import { clientSiteUpdates } from "./site";
 import { getTours, type TourData } from "./studio";
 
 export type ShareState = "ok" | "locked" | "revoked" | "expired" | "missing";
@@ -50,6 +51,7 @@ export async function loadSharedItems(linkId: string): Promise<{
   models: SharedModel[];
   tours: TourData[];
   drawings: ClientDrawing[];
+  siteUpdates: Awaited<ReturnType<typeof clientSiteUpdates>>;
   order: { itemType: s.ShareItemType; itemId: string }[];
 }> {
   const db = await getDb();
@@ -61,23 +63,26 @@ export async function loadSharedItems(linkId: string): Promise<{
   const modelIds = order.filter((i) => i.itemType === "model").map((i) => i.itemId);
   const tourIds = order.filter((i) => i.itemType === "tour").map((i) => i.itemId);
   const drawingIds = order.filter((i) => i.itemType === "drawing").map((i) => i.itemId);
-  const [models, tours, drawings] = await Promise.all([
+  const siteProject = order.find((i) => i.itemType === "site_updates")?.itemId;
+  const [models, tours, drawings, siteUpdates] = await Promise.all([
     modelIds.length
       ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId }).from(s.models3d).where(inArray(s.models3d.id, modelIds))
       : Promise.resolve([]),
     getTours(tourIds),
     clientDrawings(drawingIds),
+    siteProject ? clientSiteUpdates(siteProject) : Promise.resolve([]),
   ]);
-  return { models, tours, drawings, order };
+  return { models, tours, drawings, siteUpdates, order };
 }
 
 /** Is this file part of something the link shares? */
 export async function isSharedFile(linkId: string, fileId: string) {
-  const { models, tours, drawings } = await loadSharedItems(linkId);
+  const { models, tours, drawings, siteUpdates } = await loadSharedItems(linkId);
   return (
     models.some((m) => m.fileId === fileId) ||
     tours.some((t) => t.scenes.some((sc) => sc.fileId === fileId)) ||
-    drawings.some((d) => d.revision.fileId === fileId)
+    drawings.some((d) => d.revision.fileId === fileId) ||
+    siteUpdates.some((r) => r.photos.some((p) => p.fileId === fileId))
   );
 }
 

@@ -27,6 +27,15 @@ export const FILE_KINDS = {
     maxBytes: 80 * 1024 * 1024,
     help: "A PDF (best) or a JPG/PNG of the sheet, up to 80 MB.",
   },
+  photo: {
+    label: "photo",
+    accept: "image/*",
+    extensions: [".jpg", ".jpeg", ".png", ".webp"],
+    contentTypes: ["image/jpeg", "image/png", "image/webp"],
+    storedType: null,
+    maxBytes: 25 * 1024 * 1024,
+    help: "Take a photo or choose from the gallery. Photos are reduced to about 2000 px before uploading.",
+  },
 } as const;
 
 export type FileKind = keyof typeof FILE_KINDS;

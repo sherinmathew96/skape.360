@@ -29,6 +29,13 @@
       "when": 1794486241722,
       "tag": "0003_drawings_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794490064628,
+      "tag": "0004_site_reports_snags",
+      "breakpoints": true
     }
   ]
 }

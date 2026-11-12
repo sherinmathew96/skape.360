@@ -32,6 +32,7 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
     appOrigin(),
   ]);
   const itemTitle = (type: string, id: string) => {
+    if (type === "site_updates") return "Site progress updates";
     if (type === "drawing") {
       const d = drawings.find((x) => x.id === id);
       return d ? `${d.number} ${d.title}` : undefined;
@@ -41,6 +42,9 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
   const now = new Date();
   const open = links.filter((l) => !l.revokedAt && !(l.expiresAt && l.expiresAt < now));
   const shareable = [
+    ...(project.type !== "design"
+      ? [{ value: `site_updates:${project.id}`, label: "Site progress updates", kind: "Reports marked for the client" }]
+      : []),
     ...drawings.map((d) => ({ value: `drawing:${d.id}`, label: `${d.number} ${d.title}`, kind: "Drawing" })),
     ...models.map((m) => ({ value: `model:${m.id}`, label: m.title, kind: "3D model" })),
     ...tours.filter((t) => t.scenes > 0).map((t) => ({ value: `tour:${t.id}`, label: t.title, kind: "360° tour" })),

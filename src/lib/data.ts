@@ -236,7 +236,7 @@ export async function visibleProject(user: SessionUser, projectId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(projectId)) return null;
   const db = await getDb();
   const [row] = await db
-    .select({ id: s.projects.id, name: s.projects.name, code: s.projects.code, clientName: s.clients.name })
+    .select({ id: s.projects.id, name: s.projects.name, code: s.projects.code, clientName: s.clients.name, type: s.projects.type })
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
     .where(and(visibleProjects(user), eq(s.projects.id, projectId)));

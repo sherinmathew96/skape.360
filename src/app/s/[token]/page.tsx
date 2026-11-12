@@ -10,7 +10,9 @@ import { loadShare, loadSharedItems, logShareView } from "@/lib/share";
 
 type Props = { params: Promise<{ token: string }> };
 
-const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: process.env.APP_TIMEZONE || undefined });
+/** For date-only values (YYYY-MM-DD), which carry no time of day. */
+const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { state, link } = await loadShare((await params).token);
@@ -75,7 +77,7 @@ export default async function SharePage({ params }: Props) {
     );
   }
 
-  const [{ models, tours, drawings, order }] = await Promise.all([loadSharedItems(link.id), logShareView(link.id, "page")]);
+  const [{ models, tours, drawings, siteUpdates, order }] = await Promise.all([loadSharedItems(link.id), logShareView(link.id, "page")]);
   const fileBase = `/s/${token}/f/`;
 
   return (
@@ -93,6 +95,49 @@ export default async function SharePage({ params }: Props) {
       ) : (
         <div className="space-y-10">
           {order.map((item) => {
+            if (item.itemType === "site_updates") {
+              return (
+                <section key="site" aria-labelledby="site-progress">
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4">
+                    <h2 id="site-progress" className="text-lg font-medium leading-7">Site progress</h2>
+                    <p className="text-xs text-muted">
+                      {siteUpdates.length ? `${siteUpdates.length} ${siteUpdates.length === 1 ? "update" : "updates"}, newest first` : ""}
+                    </p>
+                  </div>
+                  {siteUpdates.length === 0 ? (
+                    <p className="empty">No site updates yet. They will appear here as work progresses.</p>
+                  ) : (
+                    <ol className="space-y-3">
+                      {siteUpdates.map((r) => (
+                        <li key={r.id} className="card p-5">
+                          <p className="num mb-1 font-medium">{dayFmt.format(new Date(`${r.date}T00:00:00Z`))}</p>
+                          <p className="whitespace-pre-line">{r.workDone}</p>
+                          {r.photos.length > 0 ? (
+                            <ul className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-4">
+                              {r.photos.map((p, i) => (
+                                <li key={p.id}>
+                                  <a href={`${fileBase}${p.fileId}`} target="_blank" rel="noreferrer">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={`${fileBase}${p.fileId}`}
+                                      alt={`Site photo ${i + 1}, ${dayFmt.format(new Date(`${r.date}T00:00:00Z`))}`}
+                                      loading="lazy"
+                                      width={400}
+                                      height={300}
+                                      className="aspect-[4/3] w-full rounded-[4px] bg-raised object-cover"
+                                    />
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              );
+            }
             if (item.itemType === "drawing") {
               const d = drawings.find((x) => x.id === item.itemId);
               if (!d) return null;

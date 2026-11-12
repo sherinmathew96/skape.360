@@ -21,7 +21,8 @@ const r2Config = () => {
   return { accountId: R2_ACCOUNT_ID, accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY, bucket: R2_BUCKET };
 };
 
-export const storageDriver = (): "r2" | "local" => (r2Config() ? "r2" : "local");
+// USE_LOCAL_STORAGE=1 keeps files on this computer, e.g. for testing without touching R2.
+export const storageDriver = (): "r2" | "local" => (r2Config() && !process.env.USE_LOCAL_STORAGE ? "r2" : "local");
 
 function assertLocalAllowed() {
   if (process.env.NODE_ENV === "production" && !process.env.ALLOW_LOCAL_DB) {

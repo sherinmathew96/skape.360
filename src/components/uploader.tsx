@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { startUpload } from "@/app/studio-actions";
 import { FILE_KINDS, formatBytes, type FileKind } from "@/lib/file-kinds";
+import { shrinkImage } from "@/lib/shrink-image";
 
 type Progress = { name: string; loaded: number; total: number; index: number; count: number };
 
@@ -52,7 +53,8 @@ export function Uploader({
     try {
       const problem = validate ? await validate() : null;
       if (problem) throw new Error(problem);
-      for (const [index, file] of list.entries()) {
+      for (const [index, picked] of list.entries()) {
+        const file = kind === "photo" ? await shrinkImage(picked) : picked;
         setProgress({ name: file.name, loaded: 0, total: file.size, index, count: list.length });
         const ticket = await startUpload({ projectId, kind, name: file.name, size: file.size, type: file.type });
         if ("error" in ticket) throw new Error(ticket.error);

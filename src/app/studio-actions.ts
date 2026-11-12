@@ -8,6 +8,7 @@ import { and, asc, count, eq, gt, max } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { SHARE_ITEM_TYPES } from "@/db/schema";
+import { requireProjectMember } from "@/lib/access";
 import { requirePermission, type SessionUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
 import { FILE_KINDS, type FileKind } from "@/lib/file-kinds";
@@ -45,7 +46,8 @@ export async function startUpload(input: {
   size: number;
   type: string;
 }): Promise<UploadTicket> {
-  const { user, project } = await requireStudioProject(input.projectId);
+  // Site photos can come from anyone on the project; studio files need studio rights.
+  const { user, project } = input.kind === "photo" ? await requireProjectMember(input.projectId) : await requireStudioProject(input.projectId);
   const kind = FILE_KINDS[input.kind];
   if (!kind) return { error: "Unknown file kind." };
 
@@ -274,6 +276,11 @@ async function parseItems(projectId: string, raw: string[]) {
     const [type, id] = value.split(":");
     const itemType = z.enum(SHARE_ITEM_TYPES).parse(type);
     const itemId = uuid.parse(id);
+    if (itemType === "site_updates") {
+      // Site progress is the project itself.
+      if (itemId === projectId) items.push({ itemType, itemId });
+      continue;
+    }
     const table = itemType === "model" ? s.models3d : itemType === "tour" ? s.tours : s.drawings;
     const [row] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, itemId), eq(table.projectId, projectId)));
     if (row) items.push({ itemType, itemId });
@@ -351,7 +358,7 @@ export async function getEmbedToken(input: { projectId: string; itemType: s.Shar
   if (existing) return existing;
 
   const db = await getDb();
-  if (item.itemType === "drawing") throw new Error("Drawings are shared through client links, not embeds.");
+  if (item.itemType === "drawing" || item.itemType === "site_updates") throw new Error("Only models and tours can be embedded.");
   const table = item.itemType === "model" ? s.models3d : s.tours;
   const [{ title }] = await db.select({ title: table.title }).from(table).where(eq(table.id, item.itemId));
   const token = randomBytes(18).toString("base64url");
