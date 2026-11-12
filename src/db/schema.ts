@@ -87,6 +87,9 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   email: text("email"),
   address: text("address"),
+  /** GST state code, e.g. "32" for Kerala; decides CGST+SGST or IGST */
+  stateCode: text("state_code"),
+  gstin: text("gstin"),
   createdAt: createdAt(),
 });
 
@@ -119,6 +122,8 @@ export const projects = pgTable(
     dueDate: date("due_date"),
     leadId: uuid("lead_id").references(() => users.id, { onDelete: "set null" }),
     notes: text("notes"),
+    /** The agreed professional fee, before GST */
+    fee: numeric("fee", { precision: 14, scale: 2 }),
     createdBy: uuid("created_by").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -213,9 +218,8 @@ export const files = pgTable(
   "files",
   {
     id: id(),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    /** Null for studio-wide files, e.g. a receipt for office rent */
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     storageKey: text("storage_key").notNull().unique(),
     name: text("name").notNull(),
     contentType: text("content_type").notNull(),
@@ -461,6 +465,10 @@ export const businessSettings = pgTable("business_settings", {
   phone: text("phone"),
   email: text("email"),
   poTerms: text("po_terms"),
+  /** The studio's own GST state code, "32" for Kerala */
+  stateCode: text("state_code").notNull().default("32"),
+  bankDetails: text("bank_details"),
+  invoiceTerms: text("invoice_terms"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
@@ -604,6 +612,151 @@ export const goodsReceiptItems = pgTable(
     quantity: qty("quantity").notNull(),
   },
   (t) => [primaryKey({ columns: [t.receiptId, t.poItemId] })],
+);
+
+// ── Finance ─────────────────────────────────────────────────────────────────
+
+/** draft (no number yet) → issued (numbered, sent) → cancelled. Paid is worked out from payments. */
+export const INVOICE_STATUSES = ["draft", "issued", "cancelled"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: id(),
+    /** INV/2026-27/001, given when issued so issued numbers have no gaps */
+    number: text("number").unique(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    milestoneId: uuid("milestone_id").references(() => milestones.id, { onDelete: "set null" }),
+    status: text("status").$type<InvoiceStatus>().notNull().default("draft"),
+    issueDate: date("issue_date"),
+    dueDate: date("due_date"),
+    /** GST state code of the place of supply */
+    placeOfSupply: text("place_of_supply").notNull(),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("invoices_project_idx").on(t.projectId), index("invoices_status_idx").on(t.status)],
+);
+
+export const invoiceItems = pgTable(
+  "invoice_items",
+  {
+    id: id(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    description: text("description").notNull(),
+    /** Service code, e.g. 998322 for architectural services */
+    sac: text("sac"),
+    quantity: qty("quantity").notNull().default("1"),
+    unit: text("unit").notNull().default("nos"),
+    rate: money("rate").notNull(),
+    gstRate: numeric("gst_rate", { precision: 5, scale: 2 }).notNull().default("18"),
+    position: integer("position").notNull(),
+  },
+  (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position)],
+);
+
+export const PAYMENT_METHODS = ["bank", "upi", "cheque", "cash", "card"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const paymentsReceived = pgTable(
+  "payments_received",
+  {
+    id: id(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    receivedOn: date("received_on").notNull(),
+    amount: money("amount").notNull(),
+    /** Tax deducted at source by the client, counted towards the invoice */
+    tds: money("tds").notNull().default("0"),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    reference: text("reference"),
+    recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("payments_received_invoice_idx").on(t.invoiceId)],
+);
+
+/** A supplier's bill, ideally against a purchase order. Paid is worked out from payments. */
+export const vendorBills = pgTable(
+  "vendor_bills",
+  {
+    id: id(),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    poId: uuid("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
+    /** The supplier's own bill number */
+    billNumber: text("bill_number").notNull(),
+    billDate: date("bill_date").notNull(),
+    dueDate: date("due_date"),
+    amount: money("amount").notNull(),
+    gst: money("gst").notNull().default("0"),
+    fileId: uuid("file_id").references(() => files.id, { onDelete: "set null" }),
+    note: text("note"),
+    cancelled: boolean("cancelled").notNull().default(false),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("bills_supplier_idx").on(t.supplierId), index("bills_project_idx").on(t.projectId), index("bills_po_idx").on(t.poId)],
+);
+
+export const vendorPayments = pgTable(
+  "vendor_payments",
+  {
+    id: id(),
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => vendorBills.id, { onDelete: "cascade" }),
+    paidOn: date("paid_on").notNull(),
+    amount: money("amount").notNull(),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    reference: text("reference"),
+    recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("vendor_payments_bill_idx").on(t.billId)],
+);
+
+export const EXPENSE_CATEGORIES = [
+  "site_petty_cash",
+  "labour_wages",
+  "transport",
+  "travel",
+  "printing",
+  "consultants",
+  "rent",
+  "utilities",
+  "software",
+  "office",
+  "other",
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/** Money spent outside purchase orders. No project means a studio overhead. */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: id(),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    category: text("category").$type<ExpenseCategory>().notNull(),
+    spentOn: date("spent_on").notNull(),
+    /** Total paid, including any GST */
+    amount: money("amount").notNull(),
+    description: text("description").notNull(),
+    method: text("method").$type<PaymentMethod>().notNull().default("cash"),
+    receiptFileId: uuid("receipt_file_id").references(() => files.id, { onDelete: "set null" }),
+    recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("expenses_project_idx").on(t.projectId), index("expenses_date_idx").on(t.spentOn)],
 );
 
 /** "site_updates" shares a project's client-visible site reports; its item id is the project id. */

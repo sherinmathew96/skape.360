@@ -36,6 +36,15 @@ export const FILE_KINDS = {
     maxBytes: 25 * 1024 * 1024,
     help: "Take a photo or choose from the gallery. Photos are reduced to about 2000 px before uploading.",
   },
+  receipt: {
+    label: "receipt or bill",
+    accept: "image/*,.pdf,application/pdf",
+    extensions: [".jpg", ".jpeg", ".png", ".webp", ".pdf"],
+    contentTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    storedType: null,
+    maxBytes: 25 * 1024 * 1024,
+    help: "A photo or PDF of the receipt or bill.",
+  },
 } as const;
 
 export type FileKind = keyof typeof FILE_KINDS;

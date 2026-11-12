@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { saveInvoiceSettings } from "@/app/finance-actions";
 import { saveSettings } from "@/app/procurement-actions";
+import { GST_STATES } from "@/lib/gst";
 import { ActionForm } from "@/components/action-form";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -17,7 +19,7 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-[1136px]">
       <div className="mb-6">
         <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Settings</h1>
-        <p className="mt-1 text-muted">What prints at the top of purchase orders. Only admins can change this.</p>
+        <p className="mt-1 text-muted">What prints on purchase orders and invoices. Only admins can change this.</p>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -62,6 +64,30 @@ export default async function SettingsPage() {
           </ActionForm>
         </section>
 
+        <div className="grid grid-cols-1 gap-3">
+        <section className="card p-5" aria-labelledby="invoice-settings-title">
+          <h2 id="invoice-settings-title" className="card-title mb-4">Invoices</h2>
+          <ActionForm action={saveInvoiceSettings} submitLabel="Save" pendingLabel="Saving…" className="space-y-4">
+            <div>
+              <label htmlFor="stateCode" className="field-label">Studio&rsquo;s GST state</label>
+              <select id="stateCode" name="stateCode" defaultValue={b.stateCode} aria-describedby="state-help" className="field">
+                {GST_STATES.map(([code, name]) => (
+                  <option key={code} value={code}>{code} {name}</option>
+                ))}
+              </select>
+              <p id="state-help" className="mt-2 text-xs text-muted">Clients in this state are charged CGST + SGST; others IGST.</p>
+            </div>
+            <div>
+              <label htmlFor="bankDetails" className="field-label">Bank details for payment</label>
+              <textarea id="bankDetails" name="bankDetails" rows={4} defaultValue={b.bankDetails ?? ""} placeholder={["Account name", "Bank and branch", "Account number", "IFSC", "UPI ID"].join("\n")} className="field h-auto py-2" />
+            </div>
+            <div>
+              <label htmlFor="invoiceTerms" className="field-label">Invoice terms</label>
+              <textarea id="invoiceTerms" name="invoiceTerms" rows={3} defaultValue={b.invoiceTerms ?? ""} className="field h-auto py-2" />
+            </div>
+          </ActionForm>
+        </section>
+
         <section className="card p-5" aria-labelledby="preview-title">
           <h2 id="preview-title" className="card-title mb-4">How it prints</h2>
           <div className="rounded-md border border-border p-5">
@@ -73,6 +99,7 @@ export default async function SettingsPage() {
             <p className="mt-4 font-mono text-xs">PURCHASE ORDER PO-2026-001</p>
           </div>
         </section>
+        </div>
       </div>
     </div>
   );

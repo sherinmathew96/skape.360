@@ -7,18 +7,34 @@ import { createSnag, markSnagFixed } from "@/app/site-actions";
 import { Uploader } from "./uploader";
 
 /** One optional photo, uploaded as soon as it's picked; shows a preview with Remove. */
-export function PhotoPicker({ projectId, fileId, onChange, label }: { projectId: string; fileId: string | null; onChange: (id: string | null) => void; label: string }) {
+export function PhotoPicker({
+  projectId,
+  fileId,
+  onChange,
+  label,
+  kind = "photo",
+}: {
+  projectId: string | null;
+  fileId: string | null;
+  onChange: (id: string | null) => void;
+  label: string;
+  kind?: "photo" | "receipt";
+}) {
   const [preview, setPreview] = useState<string | null>(null);
   if (fileId && preview) {
     return (
       <div className="flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview} alt="Chosen photo" width={96} height={72} className="h-[72px] w-24 rounded-[4px] object-cover" />
+        {preview.startsWith("pdf:") ? (
+          <span className="flex h-[72px] w-24 items-center justify-center rounded-[4px] bg-raised text-xs text-muted">PDF</span>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="Chosen photo" width={96} height={72} className="h-[72px] w-24 rounded-[4px] object-cover" />
+        )}
         <button
           type="button"
           className="btn btn-quiet text-muted"
           onClick={() => {
-            URL.revokeObjectURL(preview);
+            if (!preview.startsWith("pdf:")) URL.revokeObjectURL(preview);
             setPreview(null);
             onChange(null);
           }}
@@ -31,10 +47,10 @@ export function PhotoPicker({ projectId, fileId, onChange, label }: { projectId:
   return (
     <Uploader
       projectId={projectId}
-      kind="photo"
+      kind={kind}
       label={label}
       onUploaded={async (id, file) => {
-        setPreview(URL.createObjectURL(file));
+        setPreview(file.type === "application/pdf" ? "pdf:" + file.name : URL.createObjectURL(file));
         onChange(id);
       }}
     />

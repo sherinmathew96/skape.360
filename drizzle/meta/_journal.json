@@ -43,6 +43,13 @@
       "when": 1794495412255,
       "tag": "0005_procurement",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794496387576,
+      "tag": "0006_finance",
+      "breakpoints": true
     }
   ]
 }

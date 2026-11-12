@@ -11,6 +11,7 @@ import { SHARE_ITEM_TYPES } from "@/db/schema";
 import { requireProjectMember } from "@/lib/access";
 import { requirePermission, type SessionUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
+import { can } from "@/lib/permissions";
 import { FILE_KINDS, type FileKind } from "@/lib/file-kinds";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { loadShare, shareCookieName, shareCookieValue } from "@/lib/share";
@@ -40,14 +41,32 @@ export type UploadTicket = { fileId: string; uploadUrl: string; contentType: str
 
 /** Step 1 of an upload: check the file, record it, and say where to send it. */
 export async function startUpload(input: {
-  projectId: string;
+  /** Null only for receipts and bills that belong to the studio, not a project */
+  projectId: string | null;
   kind: FileKind;
   name: string;
   size: number;
   type: string;
 }): Promise<UploadTicket> {
-  // Site photos can come from anyone on the project; studio files need studio rights.
-  const { user, project } = input.kind === "photo" ? await requireProjectMember(input.projectId) : await requireStudioProject(input.projectId);
+  // Site photos come from the project's team; receipts and bill scans from anyone who records
+  // money (project ones from the team or finance); studio files need studio rights.
+  let user: SessionUser;
+  let project: { id: string } | null;
+  if (input.kind === "receipt") {
+    user = await requirePermission("expense.add");
+    if (input.projectId === null) {
+      project = null;
+    } else if (can(user.role, "finance.manage")) {
+      project = await visibleProject(user, uuid.parse(input.projectId));
+      if (!project) throw new Error("That project was not found.");
+    } else {
+      project = (await requireProjectMember(input.projectId)).project;
+    }
+  } else if (input.projectId === null) {
+    throw new Error("Choose a project first.");
+  } else {
+    ({ user, project } = input.kind === "photo" ? await requireProjectMember(input.projectId) : await requireStudioProject(input.projectId));
+  }
   const kind = FILE_KINDS[input.kind];
   if (!kind) return { error: "Unknown file kind." };
 
@@ -63,11 +82,11 @@ export async function startUpload(input: {
 
   const contentType = kind.storedType ?? input.type;
   const fileId = randomUUID();
-  const storageKey = `projects/${project.id}/${input.kind}/${fileId}${ext}`;
+  const storageKey = project ? `projects/${project.id}/${input.kind}/${fileId}${ext}` : `studio/${input.kind}/${fileId}${ext}`;
   const db = await getDb();
   await db.insert(s.files).values({
     id: fileId,
-    projectId: project.id,
+    projectId: project?.id ?? null,
     storageKey,
     name,
     contentType,

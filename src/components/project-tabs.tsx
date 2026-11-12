@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /** Site and Snags only appear on projects with construction work. */
-export function ProjectTabs({ projectId, construction = true }: { projectId: string; construction?: boolean }) {
+export function ProjectTabs({ projectId, construction = true, money = false }: { projectId: string; construction?: boolean; money?: boolean }) {
   const pathname = usePathname();
   const base = `/projects/${projectId}`;
   const tabs = [
@@ -19,6 +19,7 @@ export function ProjectTabs({ projectId, construction = true }: { projectId: str
           { href: `${base}/materials`, label: "Materials", active: pathname.startsWith(`${base}/materials`) },
         ]
       : []),
+    ...(money ? [{ href: `${base}/finance`, label: "Finance", active: pathname.startsWith(`${base}/finance`) }] : []),
     { href: `${base}/sharing`, label: "Client sharing", active: pathname.startsWith(`${base}/sharing`) },
   ];
   return (

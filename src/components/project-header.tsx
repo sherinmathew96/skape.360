@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { getUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { ProjectTabs } from "./project-tabs";
 
 /** Breadcrumb, title and the project's section tabs, shared by every project page. */
-export function ProjectHeader({
+export async function ProjectHeader({
   project,
   subtitle,
   crumbs = [],
@@ -15,6 +17,8 @@ export function ProjectHeader({
   actions?: React.ReactNode;
   badge?: React.ReactNode;
 }) {
+  const user = await getUser();
+  const money = user ? can(user.role, "finance.view") : false;
   return (
     <div className="mb-6">
       <p className="mb-2 truncate text-muted">
@@ -37,7 +41,7 @@ export function ProjectHeader({
         </div>
         {actions}
       </div>
-      <ProjectTabs projectId={project.id} construction={project.type !== "design"} />
+      <ProjectTabs projectId={project.id} construction={project.type !== "design"} money={money} />
     </div>
   );
 }

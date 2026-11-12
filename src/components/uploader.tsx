@@ -32,7 +32,7 @@ export function Uploader({
   onUploaded,
   validate,
 }: {
-  projectId: string;
+  projectId: string | null;
   kind: FileKind;
   multiple?: boolean;
   label: string;
@@ -54,7 +54,7 @@ export function Uploader({
       const problem = validate ? await validate() : null;
       if (problem) throw new Error(problem);
       for (const [index, picked] of list.entries()) {
-        const file = kind === "photo" ? await shrinkImage(picked) : picked;
+        const file = kind === "photo" || kind === "receipt" ? await shrinkImage(picked) : picked;
         setProgress({ name: file.name, loaded: 0, total: file.size, index, count: list.length });
         const ticket = await startUpload({ projectId, kind, name: file.name, size: file.size, type: file.type });
         if ("error" in ticket) throw new Error(ticket.error);
