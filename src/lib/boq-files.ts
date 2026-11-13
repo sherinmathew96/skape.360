@@ -112,7 +112,10 @@ export async function readXlsx(file: File): Promise<BoqSheet[]> {
 type Piece = { x: number; y: number; w: number; h: number; str: string };
 type Line = { y: number; pieces: Piece[] };
 
-const CODE = /^\d+(\.\d+)+[a-z]?$/i;
+const CODE = /^[A-Z]{0,2}\d+(\.\d+)+[a-z]?$/i;
+/** Heads (1, A1) and groups (A, B: a floor) in the number column. */
+const HEAD = /^[A-Z]{0,2}\d+\.?$|^[A-Z]{0,2}\d+\.?\s+[A-Za-z]/;
+const GROUP = /^[A-Z]{1,2}[.)]?$|^[A-Z]{1,2}[.)]?\s+[A-Za-z]/;
 const NUMERIC = /^[-₹]?[\d,]+(\.\d+)?%?$/;
 const UNIT = /^(l\.?\s*s\.?|lump\s*sum|m[²³23]?|sq\.?\s*m|sqm|cum|cu\.?\s*m|cu\.?\s*ft|sq\.?\s*ft|r\.?\s*m\.?|rmt|nos?\.?|no's|bags?|kg|mt|tonnes?|ltrs?|litres?|each|job|sets?|pairs?|day|days|month)$/i;
 
@@ -166,7 +169,7 @@ export async function readPdf(file: File): Promise<BoqSheet[]> {
   if (!lines.length) throw new Error("No text found in this PDF. It may be a scan; use the Excel file instead.");
 
   // Where the columns are: item numbers on the left, figures on the right.
-  const codes = lines.flatMap((l) => l.pieces.filter((p) => CODE.test(p.str) || (/^\d+$/.test(p.str) && p.x < pageWidth * 0.2)));
+  const codes = lines.flatMap((l) => l.pieces.filter((p) => CODE.test(p.str) || (/^[A-Z]{0,2}\d+$/.test(p.str) && p.x < pageWidth * 0.2)));
   const codeLeft = codes.length ? Math.min(...codes.map((p) => p.x)) : 0;
   const codeRight = codes.length ? Math.max(...codes.filter((p) => p.x < codeLeft + fontSize * 4).map((p) => p.x + p.w)) : 0;
   // The figures start at the "Unit" / "Qty" heading when there is one; otherwise at the first figure on the right half.
@@ -183,7 +186,7 @@ export async function readPdf(file: File): Promise<BoqSheet[]> {
   });
 
   // Rows that start something: an item number, a head ("2 EXCAVATION"), a sub-total.
-  const isAnchor = (r: Row) => CODE.test(r.code) || /^\d+\.?$/.test(r.code) || /^\d+\.?\s+[A-Za-z]/.test(r.code) || /^[a-z][.)]$/i.test(r.code) || /^(sub[\s-]*total|total|gst)/i.test(r.desc);
+  const isAnchor = (r: Row) => CODE.test(r.code) || HEAD.test(r.code) || GROUP.test(r.code) || /^[a-z][.)]$/.test(r.code) || /^(sub[\s-]*total|total|gst)/i.test(r.desc);
   const loose = (r: Row) => !r.code && !r.figures && !!r.desc;
 
   // Blocks of lines close together belong to one table row (a wrapped description).
@@ -215,10 +218,10 @@ export async function readPdf(file: File): Promise<BoqSheet[]> {
     for (const a of anchors) {
       const parts = [a, ...extras.get(a)!].sort((x, y) => x.y - y.y).map((r) => r.desc).filter(Boolean);
       const desc = parts.join(" ").replace(/\s+/g, " ").trim();
-      if (CODE.test(a.code) || (/^\d+$/.test(a.code) && a.figures)) {
+      if (CODE.test(a.code) || (/^[A-Z]{0,2}\d+$/.test(a.code) && a.figures)) {
         lastItem = [a.code, desc];
         out.push(lastItem);
-      } else if (/^\d+\.?$/.test(a.code) || /^\d+\.?\s+[A-Za-z]/.test(a.code)) {
+      } else if (HEAD.test(a.code) || GROUP.test(a.code)) {
         lastItem = null;
         out.push(desc ? [a.code, desc] : [a.code]);
       } else {

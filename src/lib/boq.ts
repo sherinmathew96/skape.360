@@ -17,7 +17,12 @@ export type BoqRow = {
 
 const SKIP = /^(sub[\s-]*total|total|grand\s*total|gst|cgst|sgst|igst|net\s*total|carried|brought)\b/i;
 const HEADER = /^(sl\.?|s\.?\s*no\.?|sr\.?\s*no\.?|item|no\.?)$/i;
-const CODE = /^\d+(\.\d+)+[a-z]?$|^\d+[a-z]$/i;
+/** An item number: 1.1, 2.10, 1.1a, or with a letter in front, A1.1, B2.3. */
+const CODE = /^[A-Z]{0,2}\d+(\.\d+)+[a-z]?$|^\d+[a-z]$/i;
+/** A head's number: 1, 2., A1, B2. */
+const HEAD_NO = /^[A-Z]{0,2}\d+\.?$/;
+/** A group above the heads, such as a floor: A, B, AA (capitals only; "a." is a sub-group). */
+const GROUP_NO = /^[A-Z]{1,2}[.)]?$/;
 const LUMP = /^l\.?\s*s\.?$|^lump\s*sum$|^job$/i;
 
 const num = (cell: string | undefined): number | null => {
@@ -27,10 +32,18 @@ const num = (cell: string | undefined): number | null => {
   return Number(clean);
 };
 
-/** "PRELIMINARIES" → "Preliminaries"; mixed case is kept as written. */
+const ACRONYMS = new Set(["RCC", "PCC", "GI", "MS", "SS", "PVC", "UPVC", "CPVC", "DPC", "RMC", "TMT", "AAC", "CC", "MEP", "HVAC", "WPC", "FRP", "GF", "FF", "SF", "DG", "LT", "HT", "CP", "WC", "AC", "MDF", "HDF", "ACP", "GRC", "FRC", "SFRC", "PT", "STP", "WTP", "OHT", "UGT", "UG", "EB"]);
+
+/** "PRELIMINARIES" → "Preliminaries", "RCC COLUMNS" → "RCC columns"; mixed case is kept as written. */
 const tidy = (text: string) => {
   const t = text.replace(/\s+/g, " ").trim();
-  return t === t.toUpperCase() && /[A-Z]/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+  if (t !== t.toUpperCase() || !/[A-Z]/.test(t)) return t;
+  const words = t.split(" ").map((w) => {
+    const bare = w.replace(/[^A-Z]/g, "");
+    return ACRONYMS.has(bare) || (bare.length >= 2 && !/[AEIOUY]/.test(bare)) ? w : w.toLowerCase();
+  });
+  const out = words.join(" ");
+  return out.charAt(0).toUpperCase() + out.slice(1);
 };
 
 /** Splits tab-separated text into rows of cells, keeping quoted cells that span lines (as Excel copies them). */
@@ -74,7 +87,9 @@ export function parseBoq(text: string, startSection = "Works"): BoqRow[] {
  */
 export function parseBoqRows(table: string[][], { startSection = "Works", lists = false }: { startSection?: string; lists?: boolean } = {}): BoqRow[] {
   const rows: BoqRow[] = [];
+  let group: string | null = null;
   let section = startSection;
+  const headed = (name: string) => (group ? `${group} – ${name}` : name);
 
   for (const raw of table) {
     const cells = raw.map((c) => c.replace(/\s+/g, " ").trim());
@@ -89,20 +104,35 @@ export function parseBoqRows(table: string[][], { startSection = "Works", lists 
     const [first = "", ...rest] = cells;
     const numbers = rest.map(num).filter((n) => n !== null);
 
-    // A section head: "1 PRELIMINARIES", or "1" then "PRELIMINARIES", with no figures.
-    const head = first.match(/^(\d+)\.?\s+([A-Za-z].*)$/);
-    if (head && numbers.length === 0 && filled.length === 1) {
-      section = tidy(head[2]);
+    const words = rest.filter(Boolean);
+
+    // A group above the heads, e.g. a floor: "A GROUND FLOOR", or "A" then "GROUND FLOOR".
+    const groupInline = first.match(/^([A-Z]{1,2})[.)]?\s+([A-Za-z].*)$/);
+    if (numbers.length === 0 && filled.length === 1 && groupInline && (!/[a-z]/.test(groupInline[2]) || groupInline[2].length <= 40)) {
+      group = tidy(groupInline[2]);
+      section = group;
       continue;
     }
-    if (/^\d+\.?$/.test(first) && numbers.length === 0 && rest.filter(Boolean).length === 1) {
-      section = tidy(rest.find(Boolean)!);
+    if (GROUP_NO.test(first) && numbers.length === 0 && words.length === 1) {
+      group = tidy(words[0]);
+      section = group;
+      continue;
+    }
+
+    // A main work's head: "1 PRELIMINARIES", "A1 BRICK MASONRY", or the number then the name, with no figures.
+    const head = first.match(/^([A-Z]{0,2}\d+)\.?\s+([A-Za-z].*)$/);
+    if (head && numbers.length === 0 && filled.length === 1) {
+      section = headed(tidy(head[2]));
+      continue;
+    }
+    if (HEAD_NO.test(first) && numbers.length === 0 && words.length === 1) {
+      section = headed(tidy(words[0]));
       continue;
     }
     // A sub-group such as "a. Site barricading…" with no figures: kept as context, not a work.
     if (/^[a-z][.)]\s/i.test(first) && numbers.length === 0 && filled.length === 1) continue;
 
-    if (CODE.test(first) || (/^\d+$/.test(first) && rest.filter(Boolean).length >= 2)) {
+    if (CODE.test(first) || (/^[A-Z]{0,2}\d+$/.test(first) && words.length >= 2)) {
       // An item: Sl, Description, Unit, Qty, Rate, Amount (any of the last four may be blank).
       const [title = "", unit = "", qtyCell = "", rateCell = "", amountCell = ""] = rest;
       if (!title) continue;

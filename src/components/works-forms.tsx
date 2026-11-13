@@ -59,6 +59,8 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
       const read = await readBoqFile(file);
       setSheets(read);
       setPicked(defaultSheets(read));
+      // A new BOQ file takes the place of the current timeline.
+      if (hasWorks && canReplace) setReplace(true);
       setText("");
     } catch (err) {
       clearFile();
@@ -73,7 +75,7 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (replace && !window.confirm("Replace the whole timeline? Every work on it now, with its dates, will be removed.")) return;
+        if (replace && !window.confirm("Replace the timeline with this BOQ? Works still in it keep their progress and dates; works not in it are removed.")) return;
         start(async () => {
           const res = await importWorks({ projectId, replace, rows: rows.map((r) => ({ ...r, unit: null, qty: null, rate: null, amount: null })) });
           setState(res);
@@ -189,7 +191,7 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
       {hasWorks && canReplace ? (
         <label className="flex min-h-10 items-center gap-2 text-sm">
           <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} className="h-4 w-4 accent-primary" />
-          Replace the current timeline instead of adding to it
+          Replace the current timeline (works still in the BOQ keep their progress)
         </label>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

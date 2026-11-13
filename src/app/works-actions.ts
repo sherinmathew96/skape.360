@@ -36,7 +36,6 @@ async function refresh(projectId: string) {
   if (portal) revalidatePath(`/${portal.slug}`, "layout");
 }
 
-const money = (n: number | null) => (n === null ? null : n.toFixed(2));
 
 /** Writes the project's works in this order, numbering them 1, 2, 3… */
 async function writeOrder(projectId: string, ids: string[]) {
@@ -192,29 +191,41 @@ export async function importWorks(input: {
   }
   const db = await getDb();
   const projectId = ctx.project.id;
+  // When the BOQ is uploaded again, works still in it keep their progress and dates.
+  const key = (section: string, title: string) => `${section}\u0000${title}`.toLowerCase().replace(/\s+/g, " ").trim();
+  const kept = new Map<string, typeof s.works.$inferSelect>();
   if (input.replace) {
     if (!can(ctx.user, "projects.edit")) return { error: "Only project managers can replace the whole timeline." };
+    for (const w of await db.select().from(s.works).where(eq(s.works.projectId, projectId))) kept.set(key(w.section, w.title), w);
     await db.delete(s.works).where(eq(s.works.projectId, projectId));
   }
   const [end] = await db.select({ p: max(s.works.position) }).from(s.works).where(eq(s.works.projectId, projectId));
   const start = end?.p ?? 0;
+  let carried = 0;
   await db.insert(s.works).values(
-    rows.data.map((r, i) => ({
-      projectId,
-      section: r.section,
-      code: r.code || null,
-      title: r.title,
-      unit: r.unit || null,
-      qty: r.qty === null ? null : String(r.qty),
-      rate: money(r.rate),
-      amount: money(r.amount),
-      position: start + i + 1,
-      updatedBy: ctx.user.id,
-    })),
+    rows.data.map((r, i) => {
+      const old = kept.get(key(r.section, r.title));
+      if (old && old.status !== "pending") carried++;
+      return {
+        projectId,
+        section: r.section,
+        code: r.code || null,
+        title: r.title,
+        position: start + i + 1,
+        status: old?.status ?? "pending",
+        plannedStart: old?.plannedStart ?? null,
+        plannedEnd: old?.plannedEnd ?? null,
+        startedOn: old?.startedOn ?? null,
+        completedOn: old?.completedOn ?? null,
+        note: old?.note ?? null,
+        updatedBy: ctx.user.id,
+      };
+    }),
   );
-  await db.insert(s.auditLog).values({ userId: ctx.user.id, action: input.replace ? "replace" : "import", entity: "works", entityId: projectId, meta: { count: rows.data.length } });
+  await db.insert(s.auditLog).values({ userId: ctx.user.id, action: input.replace ? "replace" : "import", entity: "works", entityId: projectId, meta: { count: rows.data.length, carried } });
   await refresh(projectId);
-  return { ok: `${rows.data.length} ${rows.data.length === 1 ? "sub work" : "sub works"} added.` };
+  const n = `${rows.data.length} ${rows.data.length === 1 ? "sub work" : "sub works"}`;
+  return { ok: input.replace ? `Timeline replaced: ${n}${carried ? `, ${carried} kept their progress` : ""}.` : `${n} added.` };
 }
 
 async function loadWork(id: string) {
