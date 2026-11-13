@@ -53,7 +53,7 @@ export async function listProjects(user: SessionUser): Promise<ProjectRow[]> {
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
     .leftJoin(s.users, eq(s.users.id, s.projects.leadId))
-    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
+    .leftJoin(s.firms, and(eq(s.firms.id, s.projects.firmId), isNull(s.firms.deletedAt)))
     .where(visibleProjects(user))
     .orderBy(asc(s.projects.code));
 
@@ -187,7 +187,7 @@ export async function getProject(user: SessionUser, id: string) {
     })
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
-    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
+    .leftJoin(s.firms, and(eq(s.firms.id, s.projects.firmId), isNull(s.firms.deletedAt)))
     .where(and(visibleProjects(user), eq(s.projects.id, id)));
   if (!project) return null;
 

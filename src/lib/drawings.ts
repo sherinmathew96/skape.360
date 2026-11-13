@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb, schema as s } from "@/db";
 
@@ -104,7 +104,7 @@ export async function listDrawings(projectId: string): Promise<DrawingRow[]> {
     .select(drawingColumns)
     .from(s.drawings)
     .leftJoin(s.users, eq(s.users.id, s.drawings.assigneeId))
-    .where(eq(s.drawings.projectId, projectId))
+    .where(and(eq(s.drawings.projectId, projectId), isNull(s.drawings.deletedAt)))
     .orderBy(asc(s.drawings.position), asc(s.drawings.createdAt));
   const revs = await revisionsFor(rows.map((r) => r.id));
   return rows.map((d) => {
@@ -194,7 +194,7 @@ export async function getDrawing(projectId: string, drawingId: string) {
   const [drawing] = await db
     .select()
     .from(s.drawings)
-    .where(and(eq(s.drawings.projectId, projectId), eq(s.drawings.id, drawingId)));
+    .where(and(eq(s.drawings.projectId, projectId), eq(s.drawings.id, drawingId), isNull(s.drawings.deletedAt)));
   if (!drawing) return null;
   const revisions: RevisionRow[] = await revisionsFor([drawing.id]);
   const approvals = await approvalsFor(revisions.map((r) => r.id));
@@ -215,7 +215,7 @@ export async function clientDrawings(drawingIds: string[]): Promise<ClientDrawin
   const rows = await db
     .select({ id: s.drawings.id, number: s.drawings.number, title: s.drawings.title })
     .from(s.drawings)
-    .where(inArray(s.drawings.id, drawingIds));
+    .where(and(inArray(s.drawings.id, drawingIds), isNull(s.drawings.deletedAt)));
   const revs = (await revisionsFor(drawingIds)).filter((r) => r.status !== "draft");
   const approvals = await approvalsFor(revs.map((r) => r.id));
   return rows.flatMap((d) => {
@@ -232,7 +232,7 @@ export async function shareableDrawings(projectId: string) {
     .selectDistinct({ id: s.drawings.id, number: s.drawings.number, title: s.drawings.title })
     .from(s.drawings)
     .innerJoin(s.drawingRevisions, eq(s.drawingRevisions.drawingId, s.drawings.id))
-    .where(and(eq(s.drawings.projectId, projectId), ne(s.drawingRevisions.status, "draft")))
+    .where(and(eq(s.drawings.projectId, projectId), ne(s.drawingRevisions.status, "draft"), isNull(s.drawings.deletedAt)))
     .orderBy(asc(s.drawings.number));
 }
 

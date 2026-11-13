@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Building2, Lock } from "lucide-react";
 import { FirmForm } from "@/components/firm-form";
+import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { listFirms } from "@/lib/firms";
 import { appOrigin } from "@/lib/origin";
@@ -20,14 +21,14 @@ export default async function FirmsPage() {
 
   return (
     <div className="mx-auto max-w-[1136px]">
-      <div className="mb-6">
-        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">Firms</h1>
-        <p className="mt-1 text-muted">
-          {firms.length
-            ? `${firms.length} ${firms.length === 1 ? "firm" : "firms"}, ${projects} ${projects === 1 ? "project" : "projects"}. Each firm sees its projects on its own page.`
-            : "Contractors and PMCs you design for. Each gets a page listing the projects you did for them."}
-        </p>
-      </div>
+      <SettingsHeader
+        user={user}
+        subtitle={
+          firms.length
+            ? `Firms: ${firms.length} ${firms.length === 1 ? "firm" : "firms"}, ${projects} ${projects === 1 ? "project" : "projects"}. Each firm sees its projects on its own page.`
+            : "Firms: contractors and PMCs you design for. Each gets a page listing the projects you did for them."
+        }
+      />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="card overflow-hidden" aria-labelledby="firms-title">

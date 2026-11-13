@@ -43,7 +43,7 @@ export async function getBusinessSettings() {
   const db = await getDb();
   const [row] = await db.select().from(s.businessSettings).where(eq(s.businessSettings.id, STUDIO));
   return (
-    row ?? { id: STUDIO, companyName: "Studio Skape", address: null, gstin: null, phone: null, email: null, poTerms: null, stateCode: "32", bankDetails: null, invoiceTerms: null, updatedAt: null, updatedBy: null }
+    row ?? { id: STUDIO, companyName: "Studio Skape", address: null, gstin: null, phone: null, email: null, poTerms: null, stateCode: "32", bankDetails: null, invoiceTerms: null, trashDays: 90, updatedAt: null, updatedBy: null }
   );
 }
 

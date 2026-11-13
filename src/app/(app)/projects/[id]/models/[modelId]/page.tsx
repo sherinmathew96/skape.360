@@ -72,11 +72,11 @@ export default async function ModelPage({ params }: Props) {
           {canManage ? (
             <section className="card p-5" aria-labelledby="delete-title">
               <h2 id="delete-title" className="card-title mb-1">Delete model</h2>
-              <p className="mb-4 text-muted">Removes the file and stops every link and embed that shows it.</p>
+              <p className="mb-4 text-muted">Links and embeds stop showing it. It goes to the recycle bin in Settings, and can be restored from there until it is removed for good.</p>
               <form action={deleteModel}>
                 <input type="hidden" name="projectId" value={project.id} />
                 <input type="hidden" name="id" value={model.id} />
-                <ConfirmButton message={`Delete “${model.title}”? Links and embeds showing it will stop working.`}>
+                <ConfirmButton message={`Move “${model.title}” to the recycle bin? Links and embeds stop showing it until it is restored.`}>
                   Delete model
                 </ConfirmButton>
               </form>

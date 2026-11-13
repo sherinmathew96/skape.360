@@ -12,7 +12,7 @@ import { clientDrawings } from "@/lib/drawings";
 import { can } from "@/lib/permissions";
 import { loadPortal } from "@/lib/portal";
 import { loadShare, loadSharedItems } from "@/lib/share";
-import { deleteStored, storedSize } from "@/lib/storage";
+import { storedSize } from "@/lib/storage";
 import type { FormState } from "./actions";
 
 const uuid = z.string().uuid();
@@ -57,7 +57,7 @@ async function requireDrawing(projectId: string, drawingId: string) {
   const [drawing] = await db
     .select()
     .from(s.drawings)
-    .where(and(eq(s.drawings.id, uuid.parse(drawingId)), eq(s.drawings.projectId, ctx.project.id)));
+    .where(and(eq(s.drawings.id, uuid.parse(drawingId)), eq(s.drawings.projectId, ctx.project.id), isNull(s.drawings.deletedAt)));
   if (!drawing) throw new Error("That drawing was not found.");
   return { ...ctx, drawing };
 }
@@ -362,17 +362,8 @@ export async function recordDecision(_: FormState, formData: FormData): Promise<
 export async function deleteDrawing(formData: FormData) {
   const { user, project, drawing } = await requireDrawing(String(formData.get("projectId")), String(formData.get("id")));
   const db = await getDb();
-  const revs = await db
-    .select({ fileId: s.drawingRevisions.fileId, key: s.files.storageKey })
-    .from(s.drawingRevisions)
-    .innerJoin(s.files, eq(s.files.id, s.drawingRevisions.fileId))
-    .where(eq(s.drawingRevisions.drawingId, drawing.id));
-  await db.delete(s.shareLinkItems).where(and(eq(s.shareLinkItems.itemType, "drawing"), eq(s.shareLinkItems.itemId, drawing.id)));
-  await db.delete(s.drawings).where(eq(s.drawings.id, drawing.id));
-  for (const r of revs) {
-    await db.delete(s.files).where(eq(s.files.id, r.fileId));
-    await deleteStored(r.key).catch(() => {});
-  }
+  // To the recycle bin: it can be restored until the retention period ends.
+  await db.update(s.drawings).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(s.drawings.id, drawing.id));
   await audit(user, "delete", "drawing", drawing.id, { title: drawing.title });
   refresh(project.id);
   redirect(`/projects/${project.id}/drawings`);

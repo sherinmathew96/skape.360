@@ -15,8 +15,6 @@ import {
   Settings,
   ShoppingCart,
   Truck,
-  Users,
-  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,8 +27,11 @@ const MAIN: Item[] = [
   { href: "/tasks", label: "My tasks", icon: ListChecks },
 ];
 
-/** The phone's bottom bar keeps its four destinations. */
-const PHONE: Item[] = [...MAIN, { href: "/team", label: "Team", icon: Users }];
+/** The phone's bottom bar: the everyday pages and Settings. */
+const PHONE: Item[] = [...MAIN, { href: "/settings", label: "Settings", icon: Settings }];
+
+/** Settings holds People, Roles and Firms too, so it lights up on those pages. */
+const SETTINGS_PATHS = ["/settings", "/team", "/firms"];
 
 /** Pages shown to the roles that use them, folded into sections. */
 const OFFICE = {
@@ -43,7 +44,9 @@ const OFFICE = {
 export type OfficeLink = keyof typeof OFFICE;
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  if (href === "/") return pathname === "/";
+  if (href === "/settings") return SETTINGS_PATHS.some((p) => pathname.startsWith(p));
+  return pathname.startsWith(href);
 }
 
 function Count({ n, label, onFill }: { n: number; label: string; onFill: boolean }) {
@@ -172,7 +175,6 @@ export function SidebarNav({ myOverdue, office = [], waiting = 0 }: { myOverdue:
     "/tasks": myOverdue > 0 ? { n: myOverdue, label: `${myOverdue} overdue` } : null,
     "/purchasing": waiting > 0 ? { n: waiting, label: `${waiting} requests waiting for approval` } : null,
   };
-  const people: Item[] = [{ href: "/team", label: "Team", icon: Users }, ...(office.includes("firms") ? [OFFICE.firms] : [])];
   const work: Item[] = (["finance", "purchasing", "suppliers"] as const).filter((k) => office.includes(k)).map((k) => OFFICE[k]);
 
   return (
@@ -181,13 +183,12 @@ export function SidebarNav({ myOverdue, office = [], waiting = 0 }: { myOverdue:
         <NavLink key={item.href} item={item} pathname={pathname} count={counts[item.href]} />
       ))}
       <div className="my-2 h-px bg-rule" aria-hidden="true" />
-      <Section id="people" label="People" icon={UsersRound} items={people} pathname={pathname} counts={counts} />
       {work.length ? <Section id="office" label="Office" icon={Briefcase} items={work} pathname={pathname} counts={counts} /> : null}
     </nav>
   );
 }
 
-/** Settings, at the foot of the sidebar above the account, for those who can change them. */
+/** Settings, at the foot of the sidebar above the account: People, Roles, Firms, the recycle bin and more. */
 export function SettingsLink() {
   const pathname = usePathname();
   const active = isActive(pathname, "/settings");

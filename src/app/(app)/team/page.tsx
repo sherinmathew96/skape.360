@@ -6,9 +6,9 @@ import { requireUser } from "@/lib/auth";
 import { listStaff } from "@/lib/data";
 import { can } from "@/lib/permissions";
 import { listRoles } from "@/lib/roles";
-import { TeamTabs } from "@/components/team-tabs";
+import { SettingsHeader } from "@/components/settings-header";
 
-export const metadata: Metadata = { title: "Team" };
+export const metadata: Metadata = { title: "People" };
 
 export default async function TeamPage() {
   const user = await requireUser();
@@ -19,14 +19,10 @@ export default async function TeamPage() {
 
   return (
     <div className="mx-auto max-w-[1136px]">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Team</h1>
-        <p className="num mt-1 text-muted">
-          {activeCount} {activeCount === 1 ? "person" : "people"} can sign in
-          {manage && staff.length > activeCount ? `, ${staff.length - activeCount} deactivated` : ""}
-        </p>
-      </div>
-      <TeamTabs showRoles={manage} />
+      <SettingsHeader
+        user={user}
+        subtitle={`People: ${activeCount} ${activeCount === 1 ? "person" : "people"} can sign in${manage && staff.length > activeCount ? `, ${staff.length - activeCount} deactivated` : ""}.`}
+      />
 
       <div className={`grid grid-cols-1 items-start gap-3 ${manage ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
         <section className="card" aria-label="Staff">

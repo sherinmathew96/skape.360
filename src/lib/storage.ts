@@ -212,6 +212,44 @@ export async function serveFile(file: { storageKey: string; name: string; conten
   });
 }
 
+/** Every stored object with its size: the whole R2 bucket, or the local uploads folder. */
+export async function listStoredObjects(): Promise<{ key: string; size: number }[]> {
+  if (storageDriver() === "local") {
+    const { readdir } = await import("node:fs/promises");
+    const out: { key: string; size: number }[] = [];
+    const walk = async (dir: string) => {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) await walk(full);
+        else out.push({ key: path.relative(LOCAL_ROOT, full).split(path.sep).join("/"), size: (await stat(full)).size });
+      }
+    };
+    await walk(LOCAL_ROOT);
+    return out;
+  }
+  const { client, mod, bucket } = await s3();
+  const out: { key: string; size: number }[] = [];
+  let token: string | undefined;
+  do {
+    const page = await client.send(new mod.ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token, MaxKeys: 1000 }));
+    for (const o of page.Contents ?? []) if (o.Key) out.push({ key: o.Key, size: o.Size ?? 0 });
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return out;
+}
+
+/** Removes a file and any smaller copies made of it (see fittedImage). Missing ones are fine. */
+export async function deleteStoredWithCopies(key: string) {
+  await deleteStored(key).catch(() => {});
+  for (const w of IMAGE_WIDTHS) await deleteStored(`derived/w${w}/${key}.jpg`).catch(() => {});
+}
+
 export async function deleteStored(key: string) {
   if (storageDriver() === "local") {
     await rm(localPath(key), { force: true });

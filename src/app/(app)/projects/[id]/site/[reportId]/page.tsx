@@ -1,3 +1,4 @@
+import { deleteReport } from "@/app/site-actions";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,6 +7,7 @@ import { removeReportPhoto } from "@/app/site-actions";
 import { ProjectHeader } from "@/components/project-header";
 import { ReportForm } from "@/components/report-form";
 import { ReportPhotoUpload } from "@/components/report-photos";
+import { ConfirmButton } from "@/components/confirm-button";
 import { requireUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
@@ -62,6 +64,12 @@ export default async function ReportPage({ params, searchParams }: Props) {
               }}
             />
             <Link href={base} className="mt-3 inline-block text-muted hover:text-text hover:underline">Cancel</Link>
+            <form action={deleteReport} className="mt-6 border-t border-rule pt-5">
+              <input type="hidden" name="projectId" value={project.id} />
+              <input type="hidden" name="reportId" value={report.id} />
+              <p className="mb-3 text-sm text-muted">Delete this report: it goes to the recycle bin in Settings and can be restored from there.</p>
+              <ConfirmButton message="Move this site report and its photos to the recycle bin?">Delete report</ConfirmButton>
+            </form>
           </section>
         ) : (
           <section className="card" aria-labelledby="work-title">

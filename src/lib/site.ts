@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb, schema as s } from "@/db";
 
@@ -31,7 +31,7 @@ export async function listReports(projectId: string) {
     })
     .from(s.siteReports)
     .leftJoin(s.users, eq(s.users.id, s.siteReports.createdBy))
-    .where(eq(s.siteReports.projectId, projectId))
+    .where(and(eq(s.siteReports.projectId, projectId), isNull(s.siteReports.deletedAt)))
     .orderBy(desc(s.siteReports.date));
 }
 
@@ -40,7 +40,7 @@ export async function reportOnDate(projectId: string, date: string) {
   const [row] = await db
     .select({ id: s.siteReports.id })
     .from(s.siteReports)
-    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.date, date)));
+    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.date, date), isNull(s.siteReports.deletedAt)));
   return row?.id ?? null;
 }
 
@@ -73,7 +73,7 @@ export async function getReport(projectId: string, reportId: string) {
     })
     .from(s.siteReports)
     .leftJoin(s.users, eq(s.users.id, s.siteReports.createdBy))
-    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.id, reportId)));
+    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.id, reportId), isNull(s.siteReports.deletedAt)));
   if (!report) return null;
   return { report, photos: await photosFor([report.id]) };
 }
@@ -84,7 +84,7 @@ export async function clientSiteUpdates(projectId: string, limit = 30) {
   const reports = await db
     .select({ id: s.siteReports.id, date: s.siteReports.date, weather: s.siteReports.weather, workDone: s.siteReports.workDone })
     .from(s.siteReports)
-    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.clientVisible, true)))
+    .where(and(eq(s.siteReports.projectId, projectId), eq(s.siteReports.clientVisible, true), isNull(s.siteReports.deletedAt)))
     .orderBy(desc(s.siteReports.date))
     .limit(limit);
   const photos = await photosFor(reports.map((r) => r.id));

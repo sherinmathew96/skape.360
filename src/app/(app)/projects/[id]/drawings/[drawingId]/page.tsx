@@ -216,11 +216,11 @@ export default async function DrawingPage({ params, searchParams }: Props) {
           {edit ? (
             <section className="card p-5" aria-labelledby="delete-title">
               <h2 id="delete-title" className="card-title mb-1">Delete drawing</h2>
-              <p className="mb-4 text-muted">Removes it from the register with every revision and approval.</p>
+              <p className="mb-4 text-muted">It leaves the register with its revisions and approvals. It goes to the recycle bin in Settings, and can be restored from there until it is removed for good.</p>
               <form action={deleteDrawing}>
                 <input type="hidden" name="projectId" value={project.id} />
                 <input type="hidden" name="id" value={drawing.id} />
-                <ConfirmButton message={`Delete ${name}${revisions.length ? ` and all ${revisions.length} revisions` : ""}?`}>Delete drawing</ConfirmButton>
+                <ConfirmButton message={`Move ${name} to the recycle bin?`}>Delete drawing</ConfirmButton>
               </form>
             </section>
           ) : null}

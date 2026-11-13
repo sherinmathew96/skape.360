@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, max } from "drizzle-orm";
+import { and, eq, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { WEATHER } from "@/db/schema";
@@ -64,7 +64,7 @@ export async function saveReport(_: FormState, formData: FormData): Promise<Form
   const [sameDay] = await db
     .select({ id: s.siteReports.id })
     .from(s.siteReports)
-    .where(and(eq(s.siteReports.projectId, project.id), eq(s.siteReports.date, input.date)));
+    .where(and(eq(s.siteReports.projectId, project.id), eq(s.siteReports.date, input.date), isNull(s.siteReports.deletedAt)));
   if (sameDay && sameDay.id !== reportId) {
     return { error: "There is already a report for that date. Open it from the list to add to it." };
   }
@@ -96,9 +96,19 @@ async function requireReport(projectId: string, reportId: string) {
   const [report] = await db
     .select({ id: s.siteReports.id })
     .from(s.siteReports)
-    .where(and(eq(s.siteReports.id, uuid.parse(reportId)), eq(s.siteReports.projectId, ctx.project.id)));
+    .where(and(eq(s.siteReports.id, uuid.parse(reportId)), eq(s.siteReports.projectId, ctx.project.id), isNull(s.siteReports.deletedAt)));
   if (!report) throw new Error("That report was not found.");
   return { ...ctx, report };
+}
+
+/** Moves a daily report to the recycle bin. */
+export async function deleteReport(formData: FormData) {
+  const { user, project, report } = await requireReport(String(formData.get("projectId")), String(formData.get("reportId")));
+  const db = await getDb();
+  await db.update(s.siteReports).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(s.siteReports.id, report.id));
+  await audit(user, "delete", "site_report", report.id);
+  refresh(project.id);
+  redirect(`/projects/${project.id}/site`);
 }
 
 export async function addReportPhoto(input: { projectId: string; reportId: string; fileId: string }) {

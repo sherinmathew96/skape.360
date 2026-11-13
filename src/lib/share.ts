@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDb, schema as s } from "@/db";
 import { clientDrawings, clientRegister, type ClientDrawing } from "./drawings";
 import { clientSiteUpdates } from "./site";
@@ -69,7 +69,7 @@ export async function loadSharedItems(linkId: string): Promise<{
   const registerProject = order.find((i) => i.itemType === "drawing_register")?.itemId;
   const [models, tours, drawings, siteUpdates, register] = await Promise.all([
     modelIds.length
-      ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, coverFileId: s.models3d.coverFileId, view: s.models3d.view }).from(s.models3d).where(inArray(s.models3d.id, modelIds))
+      ? db.select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, coverFileId: s.models3d.coverFileId, view: s.models3d.view }).from(s.models3d).where(and(inArray(s.models3d.id, modelIds), isNull(s.models3d.deletedAt)))
       : Promise.resolve([]),
     getTours(tourIds),
     clientDrawings(drawingIds),

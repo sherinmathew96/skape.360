@@ -6,7 +6,7 @@ import { deleteRole } from "@/app/role-actions";
 import { Avatar } from "@/components/avatar";
 import { ConfirmButton } from "@/components/confirm-button";
 import { RoleForm } from "@/components/role-form";
-import { TeamTabs } from "@/components/team-tabs";
+import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { ADMIN_ROLE, can, PERMISSION_GROUPS } from "@/lib/permissions";
 import { getRole, roleMembers } from "@/lib/roles";
@@ -23,17 +23,17 @@ export default async function RolePage({ params }: { params: Promise<{ key: stri
 
   return (
     <div className="mx-auto max-w-[1136px]">
+      <SettingsHeader user={user} subtitle="Roles decide what each person can see and do." />
       <div className="mb-6">
-        <p className="mb-2 text-muted">
+        <p className="mb-1 text-sm text-muted">
           <Link href="/team/roles" className="hover:text-primary hover:underline">Roles</Link> / {role.name}
         </p>
-        <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">{role.name}</h1>
+        <h2 className="text-xl font-semibold tracking-[-0.01em]">{role.name}</h2>
         <p className="mt-1 text-muted">
           {role.members} {role.members === 1 ? "person has" : "people have"} this role
           {role.system ? " · built in" : ""}
         </p>
       </div>
-      <TeamTabs showRoles />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="card p-6" aria-labelledby="access-title">

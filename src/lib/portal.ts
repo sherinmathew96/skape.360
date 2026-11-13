@@ -41,7 +41,7 @@ export async function slugTaken(slug: string, except: { portalId?: string; firmI
   const db = await getDb();
   const [portal] = await db.select({ id: s.clientPortals.id }).from(s.clientPortals).where(eq(s.clientPortals.slug, slug));
   if (portal && portal.id !== except.portalId) return true;
-  const [firm] = await db.select({ id: s.firms.id }).from(s.firms).where(eq(s.firms.slug, slug));
+  const [firm] = await db.select({ id: s.firms.id }).from(s.firms).where(and(eq(s.firms.slug, slug), isNull(s.firms.deletedAt)));
   return Boolean(firm && firm.id !== except.firmId);
 }
 
@@ -96,7 +96,7 @@ export const loadPortal = cache(async (rawSlug: string) => {
     .from(s.clientPortals)
     .innerJoin(s.projects, eq(s.projects.id, s.clientPortals.projectId))
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))
-    .leftJoin(s.firms, eq(s.firms.id, s.projects.firmId))
+    .leftJoin(s.firms, and(eq(s.firms.id, s.projects.firmId), isNull(s.firms.deletedAt)))
     .where(and(eq(s.clientPortals.slug, slug), isNull(s.projects.deletedAt)));
   if (!portal || !portal.enabled) return { state: "missing" as const, portal: null };
   if (portal.passcodeHash) {
@@ -132,14 +132,14 @@ export const portalContent = cache(async (portal: Pick<Portal, "projectId" | "se
       ? db
           .select({ id: s.models3d.id, title: s.models3d.title, fileId: s.models3d.fileId, coverFileId: s.models3d.coverFileId, view: s.models3d.view, createdAt: s.models3d.createdAt })
           .from(s.models3d)
-          .where(eq(s.models3d.projectId, portal.projectId))
+          .where(and(eq(s.models3d.projectId, portal.projectId), isNull(s.models3d.deletedAt)))
           .orderBy(desc(s.models3d.createdAt))
       : Promise.resolve([]),
     on.tours
       ? db
           .select({ id: s.tours.id })
           .from(s.tours)
-          .where(and(eq(s.tours.projectId, portal.projectId), sql`exists (select 1 from ${s.tourScenes} ts where ts.tour_id = ${s.tours.id})`))
+          .where(and(eq(s.tours.projectId, portal.projectId), isNull(s.tours.deletedAt), sql`exists (select 1 from ${s.tourScenes} ts where ts.tour_id = ${s.tours.id})`))
           .orderBy(desc(s.tours.createdAt))
       : Promise.resolve([]),
     on.drawings ? clientRegister(portal.projectId) : Promise.resolve([]),

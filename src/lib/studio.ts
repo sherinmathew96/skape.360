@@ -29,7 +29,7 @@ export async function listModels(projectId: string): Promise<ModelRow[]> {
     .from(s.models3d)
     .innerJoin(s.files, eq(s.files.id, s.models3d.fileId))
     .leftJoin(s.users, eq(s.users.id, s.models3d.createdBy))
-    .where(eq(s.models3d.projectId, projectId))
+    .where(and(eq(s.models3d.projectId, projectId), isNull(s.models3d.deletedAt)))
     .orderBy(desc(s.models3d.createdAt));
 }
 
@@ -49,7 +49,7 @@ export async function getModel(projectId: string, modelId: string) {
     })
     .from(s.models3d)
     .innerJoin(s.files, eq(s.files.id, s.models3d.fileId))
-    .where(and(eq(s.models3d.projectId, projectId), eq(s.models3d.id, modelId)));
+    .where(and(eq(s.models3d.projectId, projectId), eq(s.models3d.id, modelId), isNull(s.models3d.deletedAt)));
   return row ?? null;
 }
 
@@ -71,7 +71,7 @@ export async function listTours(projectId: string) {
       firstFileId: sql<string | null>`(select ts.file_id from ${s.tourScenes} ts where ts.tour_id = "tours"."id" order by ts.position limit 1)`,
     })
     .from(s.tours)
-    .where(eq(s.tours.projectId, projectId))
+    .where(and(eq(s.tours.projectId, projectId), isNull(s.tours.deletedAt)))
     .orderBy(desc(s.tours.createdAt));
 }
 
@@ -79,7 +79,7 @@ export async function getTours(tourIds: string[]): Promise<TourData[]> {
   if (tourIds.length === 0) return [];
   const db = await getDb();
   const [tours, scenes] = await Promise.all([
-    db.select({ id: s.tours.id, title: s.tours.title }).from(s.tours).where(inArray(s.tours.id, tourIds)),
+    db.select({ id: s.tours.id, title: s.tours.title }).from(s.tours).where(and(inArray(s.tours.id, tourIds), isNull(s.tours.deletedAt))),
     db
       .select({ id: s.tourScenes.id, tourId: s.tourScenes.tourId, title: s.tourScenes.title, fileId: s.tourScenes.fileId, position: s.tourScenes.position })
       .from(s.tourScenes)
@@ -106,7 +106,7 @@ export async function getTour(projectId: string, tourId: string): Promise<TourDa
   const [own] = await db
     .select({ id: s.tours.id })
     .from(s.tours)
-    .where(and(eq(s.tours.projectId, projectId), eq(s.tours.id, tourId)));
+    .where(and(eq(s.tours.projectId, projectId), eq(s.tours.id, tourId), isNull(s.tours.deletedAt)));
   if (!own) return null;
   const [tour] = await getTours([tourId]);
   return tour ?? null;

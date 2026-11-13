@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Lock, ShieldCheck } from "lucide-react";
 import { RoleForm } from "@/components/role-form";
-import { TeamTabs } from "@/components/team-tabs";
+import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { can, PERMISSION_GROUPS } from "@/lib/permissions";
 import { listRoles } from "@/lib/roles";
@@ -18,11 +18,7 @@ export default async function RolesPage() {
 
   return (
     <div className="mx-auto max-w-[1136px]">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Team</h1>
-        <p className="mt-1 text-muted">Roles decide what each person can see and do. Change a role and everyone with it changes too.</p>
-      </div>
-      <TeamTabs showRoles />
+      <SettingsHeader user={user} subtitle="Roles decide what each person can see and do. Change a role and everyone with it changes too." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="card overflow-hidden" aria-labelledby="roles-title">

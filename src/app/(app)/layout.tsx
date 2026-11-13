@@ -24,7 +24,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const myOverdue = mine.filter((task) => task.dueDate && task.dueDate < t).length;
 
   const office: OfficeLink[] = [];
-  if (can(user, "projects.create")) office.push("firms");
   if (can(user, "finance.view")) office.push("finance");
   const buyer = can(user, "procurement.manage");
   if (buyer || can(user, "procurement.prices")) office.push("purchasing");
@@ -54,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SidebarNav myOverdue={myOverdue} office={office} waiting={waiting} />
 
         <div className="mt-auto pt-6">
-          {office.includes("settings") ? <SettingsLink /> : null}
+          <SettingsLink />
         </div>
         <div className="flex items-center gap-3 rounded-xl bg-ground p-3">
           <Avatar name={user.name} size={40} />

@@ -70,11 +70,11 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
           {manage ? (
             <section className="card p-5" aria-labelledby="delete-title">
               <h2 id="delete-title" className="card-title mb-1">Delete tour</h2>
-              <p className="mb-4 text-muted">Removes every photo in it and stops links and embeds that show it.</p>
+              <p className="mb-4 text-muted">Links and embeds stop showing it. It goes to the recycle bin in Settings, and can be restored from there until it is removed for good.</p>
               <form action={deleteTour}>
                 <input type="hidden" name="projectId" value={project.id} />
                 <input type="hidden" name="id" value={tour.id} />
-                <ConfirmButton message={`Delete “${tour.title}” and its ${tour.scenes.length} photos?`}>Delete tour</ConfirmButton>
+                <ConfirmButton message={`Move “${tour.title}” to the recycle bin?`}>Delete tour</ConfirmButton>
               </form>
             </section>
           ) : null}

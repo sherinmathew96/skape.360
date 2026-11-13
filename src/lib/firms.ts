@@ -11,7 +11,7 @@ export const loadFirm = cache(async (rawSlug: string) => {
   const slug = rawSlug.toLowerCase();
   if (!SLUG_RE.test(slug)) return { state: "missing" as const, firm: null };
   const db = await getDb();
-  const [firm] = await db.select().from(s.firms).where(eq(s.firms.slug, slug));
+  const [firm] = await db.select().from(s.firms).where(and(eq(s.firms.slug, slug), isNull(s.firms.deletedAt)));
   if (!firm || !firm.enabled) return { state: "missing" as const, firm: null };
   return { state: (await hasFirmAccess(firm)) ? ("ok" as const) : ("locked" as const), firm };
 });
@@ -64,7 +64,7 @@ export async function firmProjects(firmId: string): Promise<FirmProjectCard[]> {
     db
       .select({ projectId: s.models3d.projectId, coverFileId: s.models3d.coverFileId })
       .from(s.models3d)
-      .where(and(inArray(s.models3d.projectId, ids), sql`${s.models3d.coverFileId} is not null`))
+      .where(and(inArray(s.models3d.projectId, ids), isNull(s.models3d.deletedAt), sql`${s.models3d.coverFileId} is not null`))
       .orderBy(desc(s.models3d.createdAt)),
   ]);
   return rows.map((r) => {
@@ -108,13 +108,14 @@ export async function listFirms() {
       projects: sql<number>`(select count(*) from ${s.projects} p where p.firm_id = "firms"."id" and p.deleted_at is null)::int`,
     })
     .from(s.firms)
+    .where(isNull(s.firms.deletedAt))
     .orderBy(asc(s.firms.name));
 }
 
 export async function getFirm(firmId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(firmId)) return null;
   const db = await getDb();
-  const [firm] = await db.select().from(s.firms).where(eq(s.firms.id, firmId));
+  const [firm] = await db.select().from(s.firms).where(and(eq(s.firms.id, firmId), isNull(s.firms.deletedAt)));
   return firm ?? null;
 }
 

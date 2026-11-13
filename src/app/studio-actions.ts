@@ -134,7 +134,7 @@ export async function createModel(input: { projectId: string; fileId: string; ti
 async function requireModel(projectId: string, modelId: string) {
   const ctx = await requireStudioProject(projectId);
   const db = await getDb();
-  const [model] = await db.select().from(s.models3d).where(and(eq(s.models3d.id, uuid.parse(modelId)), eq(s.models3d.projectId, ctx.project.id)));
+  const [model] = await db.select().from(s.models3d).where(and(eq(s.models3d.id, uuid.parse(modelId)), eq(s.models3d.projectId, ctx.project.id), isNull(s.models3d.deletedAt)));
   if (!model) throw new Error("That model was not found.");
   return { ...ctx, model };
 }
@@ -195,17 +195,10 @@ export async function deleteModel(formData: FormData) {
   const { user, project } = await requireStudioProject(String(formData.get("projectId")));
   const id = uuid.parse(formData.get("id"));
   const db = await getDb();
-  const [model] = await db.select().from(s.models3d).where(and(eq(s.models3d.id, id), eq(s.models3d.projectId, project.id)));
+  const [model] = await db.select().from(s.models3d).where(and(eq(s.models3d.id, id), eq(s.models3d.projectId, project.id), isNull(s.models3d.deletedAt)));
   if (!model) return;
-  const [file] = await db.select().from(s.files).where(eq(s.files.id, model.fileId));
-  await db.delete(s.shareLinkItems).where(and(eq(s.shareLinkItems.itemType, "model"), eq(s.shareLinkItems.itemId, id)));
-  const [cover] = model.coverFileId ? await db.select().from(s.files).where(eq(s.files.id, model.coverFileId)) : [];
-  await db.delete(s.files).where(eq(s.files.id, model.fileId)); // cascades to the model
-  if (file) await deleteStored(file.storageKey).catch(() => {});
-  if (cover) {
-    await db.delete(s.files).where(eq(s.files.id, cover.id));
-    await deleteStored(cover.storageKey).catch(() => {});
-  }
+  // To the recycle bin: it can be restored until the retention period ends.
+  await db.update(s.models3d).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(s.models3d.id, id));
   await audit(user, "delete", "model", id, { title: model.title });
   refresh(project.id);
   redirect(`/projects/${project.id}/models`);
@@ -233,7 +226,7 @@ async function requireTour(projectId: string, tourId: string) {
   const [tour] = await db
     .select()
     .from(s.tours)
-    .where(and(eq(s.tours.id, uuid.parse(tourId)), eq(s.tours.projectId, ctx.project.id)));
+    .where(and(eq(s.tours.id, uuid.parse(tourId)), eq(s.tours.projectId, ctx.project.id), isNull(s.tours.deletedAt)));
   if (!tour) throw new Error("That tour was not found.");
   return { ...ctx, tour };
 }
@@ -330,17 +323,8 @@ export async function deleteHotspot(input: { projectId: string; hotspotId: strin
 export async function deleteTour(formData: FormData) {
   const { user, project, tour } = await requireTour(String(formData.get("projectId")), String(formData.get("id")));
   const db = await getDb();
-  const scenes = await db
-    .select({ fileId: s.tourScenes.fileId, key: s.files.storageKey })
-    .from(s.tourScenes)
-    .innerJoin(s.files, eq(s.files.id, s.tourScenes.fileId))
-    .where(eq(s.tourScenes.tourId, tour.id));
-  await db.delete(s.shareLinkItems).where(and(eq(s.shareLinkItems.itemType, "tour"), eq(s.shareLinkItems.itemId, tour.id)));
-  await db.delete(s.tours).where(eq(s.tours.id, tour.id));
-  for (const sc of scenes) {
-    await db.delete(s.files).where(eq(s.files.id, sc.fileId));
-    await deleteStored(sc.key).catch(() => {});
-  }
+  // To the recycle bin: it can be restored until the retention period ends.
+  await db.update(s.tours).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(s.tours.id, tour.id));
   await audit(user, "delete", "tour", tour.id, { title: tour.title });
   refresh(project.id);
   redirect(`/projects/${project.id}/tours`);

@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { setProjectFirm } from "@/app/firm-actions";
+import { deleteFirm } from "@/app/trash-actions";
+import { ConfirmButton } from "@/components/confirm-button";
 import { ActionForm } from "@/components/action-form";
 import { CopyField } from "@/components/copy-field";
 import { FirmForm } from "@/components/firm-form";
+import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { listProjects } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
@@ -28,11 +31,12 @@ export default async function FirmPage({ params }: { params: Promise<{ firmId: s
 
   return (
     <div className="mx-auto max-w-[1136px]">
-      <p className="mb-2 text-muted">
-        <Link href="/firms" className="hover:text-primary hover:underline">Firms</Link> / {firm.name}
-      </p>
+      <SettingsHeader user={user} subtitle="Contractors and PMCs you design for." />
       <div className="mb-6">
-        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">{firm.name}</h1>
+        <p className="mb-1 text-sm text-muted">
+          <Link href="/firms" className="hover:text-primary hover:underline">Firms</Link> / {firm.name}
+        </p>
+        <h2 className="text-xl font-semibold tracking-[-0.01em]">{firm.name}</h2>
         <p className="mt-1 text-muted">
           {[firm.contactName, firm.phone, firm.email].filter(Boolean).join(" · ") || "No contact details yet."}
         </p>
@@ -126,6 +130,11 @@ export default async function FirmPage({ params }: { params: Promise<{ firmId: s
               hasPasscode: Boolean(firm.passcodeHash),
             }}
           />
+          <form action={deleteFirm} className="mt-6 border-t border-rule pt-5">
+            <input type="hidden" name="firmId" value={firm.id} />
+            <p className="mb-3 text-sm text-muted">Delete the firm: its page closes and it goes to the recycle bin. Its projects stay, just without a firm.</p>
+            <ConfirmButton message={`Move ${firm.name} to the recycle bin? Its page stops working until it is restored.`}>Delete firm</ConfirmButton>
+          </form>
         </section>
       </div>
     </div>

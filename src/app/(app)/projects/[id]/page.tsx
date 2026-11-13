@@ -17,6 +17,7 @@ import { StatusPill } from "@/components/status-pill";
 import { TaskList } from "@/components/task-list";
 import { requireUser } from "@/lib/auth";
 import { setProjectFirm } from "@/app/firm-actions";
+import { deleteProject } from "@/app/trash-actions";
 import { getProject, listStaff } from "@/lib/data";
 import { listFirms } from "@/lib/firms";
 import { formatDate, formatDue, today } from "@/lib/dates";
@@ -275,6 +276,22 @@ export default async function ProjectPage({ params }: Props) {
               </form>
             ) : null}
           </section>
+
+          {canEdit ? (
+            <section className="card p-5" aria-labelledby="delete-project-title">
+              <h2 id="delete-project-title" className="card-title mb-1">Delete project</h2>
+              <p className="mb-4 text-muted">
+                The project and everything in it go to the recycle bin in Settings, and can be restored from there. Projects with invoices or purchase orders can&rsquo;t be deleted.
+              </p>
+              <ActionForm action={deleteProject} submitLabel="Move to recycle bin" pendingLabel="Moving…" primary={false} className="space-y-3">
+                <input type="hidden" name="projectId" value={project.id} />
+                <div>
+                  <label htmlFor="confirm-name" className="field-label">Type <span className="font-semibold">{project.name}</span> to confirm</label>
+                  <input id="confirm-name" name="confirm" required autoComplete="off" spellCheck={false} className="field" />
+                </div>
+              </ActionForm>
+            </section>
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -134,6 +135,7 @@ export const projects = pgTable(
     }),
     createdAt: createdAt(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [index("projects_status_idx").on(t.status), index("projects_firm_idx").on(t.firmId)],
 );
@@ -270,6 +272,9 @@ export const models3d = pgTable(
     view: jsonb("view").$type<ModelView>().notNull().default({}),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    /** In the recycle bin since; null when not deleted */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [index("models_project_idx").on(t.projectId)],
 );
@@ -284,6 +289,9 @@ export const tours = pgTable(
     title: text("title").notNull(),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    /** In the recycle bin since; null when not deleted */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [index("tours_project_idx").on(t.projectId)],
 );
@@ -372,6 +380,9 @@ export const drawings = pgTable(
     statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    /** In the recycle bin since; null when not deleted */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [index("drawings_project_idx").on(t.projectId, t.number), index("drawings_group_idx").on(t.groupId, t.position)],
 );
@@ -455,9 +466,13 @@ export const siteReports = pgTable(
     clientVisible: boolean("client_visible").notNull().default(false),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    /** In the recycle bin since; null when not deleted */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("site_reports_project_date_idx").on(t.projectId, t.date)],
+  // One live report per day; deleted ones in the recycle bin do not count.
+  (t) => [uniqueIndex("site_reports_project_date_idx").on(t.projectId, t.date).where(sql`deleted_at is null`)],
 );
 
 export const siteReportPhotos = pgTable(
@@ -523,6 +538,8 @@ export const businessSettings = pgTable("business_settings", {
   stateCode: text("state_code").notNull().default("32"),
   bankDetails: text("bank_details"),
   invoiceTerms: text("invoice_terms"),
+  /** Days a deleted item stays in the recycle bin before it is removed for good */
+  trashDays: integer("trash_days").notNull().default(90),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
@@ -922,6 +939,9 @@ export const firms = pgTable("firms", {
   lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
+  /** In the recycle bin since; null when not deleted */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
 });
 
 // ── Roles: what each kind of staff member can see and do ───────────────────
