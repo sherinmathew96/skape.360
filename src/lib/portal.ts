@@ -7,11 +7,12 @@ import { getDb, schema as s } from "@/db";
 import { clientRegister } from "./drawings";
 import { clientSiteUpdates } from "./site";
 import { getTours } from "./studio";
+import { listWorks, summariseWorks } from "./works";
 
 /** First-level paths the app already uses; a portal can't take them. */
 export const RESERVED_SLUGS = new Set([
   "api", "e", "embed", "s", "f", "login", "logout", "print", "projects", "finance", "purchasing", "settings",
-  "suppliers", "tasks", "team", "admin", "account", "help", "portal", "home", "studio", "skape", "skape360",
+  "suppliers", "tasks", "team", "daybook", "admin", "account", "help", "portal", "home", "studio", "skape", "skape360",
   "manifest.webmanifest", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next",
 ]);
 
@@ -122,7 +123,7 @@ export type Portal = NonNullable<Awaited<ReturnType<typeof loadPortal>>["portal"
 export const portalContent = cache(async (portal: Pick<Portal, "projectId" | "sections">) => {
   const db = await getDb();
   const on = portal.sections;
-  const [stages, models, tourRows, register, siteUpdates] = await Promise.all([
+  const [stages, models, tourRows, register, siteUpdates, works] = await Promise.all([
     db
       .select({ id: s.projectStages.id, name: s.projectStages.name, status: s.projectStages.status })
       .from(s.projectStages)
@@ -144,9 +145,12 @@ export const portalContent = cache(async (portal: Pick<Portal, "projectId" | "se
       : Promise.resolve([]),
     on.drawings ? clientRegister(portal.projectId) : Promise.resolve([]),
     on.site ? clientSiteUpdates(portal.projectId) : Promise.resolve([]),
+    on.timeline !== false ? listWorks(portal.projectId) : Promise.resolve([]),
   ]);
   const tours = await getTours(tourRows.map((t) => t.id));
-  return { stages, models, tours, register, siteUpdates };
+  // Progress only: the portal pages never show rates or values.
+  const progress = works.length ? summariseWorks(works) : null;
+  return { stages, models, tours, register, siteUpdates, progress };
 });
 
 export type PortalContent = Awaited<ReturnType<typeof portalContent>>;

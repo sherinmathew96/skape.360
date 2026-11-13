@@ -75,6 +75,7 @@ export async function savePortal(_: FormState, formData: FormData): Promise<Form
       models: formData.get("models") === "on",
       tours: formData.get("tours") === "on",
       site: formData.get("site") === "on",
+      timeline: formData.get("timeline") === "on",
     },
     updatedAt: new Date(),
   };

@@ -23,6 +23,8 @@ import { listFirms } from "@/lib/firms";
 import { formatDate, formatDue, today } from "@/lib/dates";
 import { can } from "@/lib/permissions";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
+import { ProgressRing } from "@/components/works-charts";
+import { listWorks, summariseWorks } from "@/lib/works";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -48,6 +50,7 @@ export default async function ProjectPage({ params }: Props) {
   const late = open.filter((task) => task.dueDate && task.dueDate < t).length;
   const staff = canEdit ? (await listStaff()).filter((p) => p.active && !members.some((m) => m.id === p.id)) : [];
   const firms = canEdit ? await listFirms() : [];
+  const works = project.type === "design" ? null : summariseWorks(await listWorks(project.id));
 
   return (
     <div className="mx-auto max-w-[1136px]">
@@ -129,6 +132,28 @@ export default async function ProjectPage({ params }: Props) {
         </section>
 
         <div className="grid grid-cols-1 gap-3">
+          {works ? (
+            <section className="card p-5" aria-labelledby="works-title">
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <h2 id="works-title" className="card-title">Work progress</h2>
+                <Link href={`/projects/${project.id}/timeline`} className="text-sm font-medium text-primary hover:underline">
+                  {works.total ? "Timeline" : "Set up"}
+                </Link>
+              </div>
+              {works.total ? (
+                <div className="flex items-center gap-4">
+                  <ProgressRing pct={works.pct} size={96} />
+                  <p className="num min-w-0 text-sm text-muted">
+                    <span className="font-semibold text-text">{works.done}</span> of {works.total} works completed
+                    {works.started ? <>, <span className="font-semibold text-text">{works.started}</span> in progress</> : null}
+                    {works.late(t).length ? <span className="block font-medium text-negative">{works.late(t).length} past planned finish</span> : null}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Paste the BOQ or add milestones to track the works and show the client how far along it is.</p>
+              )}
+            </section>
+          ) : null}
           <section className="card" aria-labelledby="ms-title">
             <h2 id="ms-title" className="card-title px-5 pb-2 pt-4">Milestones</h2>
             {milestones.length > 0 ? (

@@ -896,7 +896,7 @@ export type Milestone = typeof milestones.$inferSelect;
 
 // ── Client portal: the project's own page at 360.studioskape.in/<slug> ─────
 
-export type PortalSections = { drawings: boolean; models: boolean; tours: boolean; site: boolean };
+export type PortalSections = { drawings: boolean; models: boolean; tours: boolean; site: boolean; timeline?: boolean };
 
 export const clientPortals = pgTable("client_portals", {
   id: id(),
@@ -982,4 +982,41 @@ export const incomes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("incomes_project_idx").on(t.projectId), index("incomes_date_idx").on(t.receivedOn)],
+);
+
+// ── Works timeline: a construction project's BOQ items or milestones ──────
+// In the order they are done on site; each is marked started, then completed.
+
+export const WORK_STATUSES = ["pending", "started", "done"] as const;
+export type WorkStatus = (typeof WORK_STATUSES)[number];
+
+export const works = pgTable(
+  "works",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** The BOQ head it sits under, e.g. "Excavation", or "Milestones" */
+    section: text("section").notNull().default("Works"),
+    /** The BOQ item number, e.g. "2.1" */
+    code: text("code"),
+    title: text("title").notNull(),
+    unit: text("unit"),
+    qty: qty("qty"),
+    rate: money("rate"),
+    /** Value of the item; weights progress when every work has one */
+    amount: money("amount"),
+    position: integer("position").notNull(),
+    status: text("status").$type<WorkStatus>().notNull().default("pending"),
+    plannedStart: date("planned_start"),
+    plannedEnd: date("planned_end"),
+    startedOn: date("started_on"),
+    completedOn: date("completed_on"),
+    note: text("note"),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("works_project_idx").on(t.projectId, t.position)],
 );

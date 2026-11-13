@@ -10,7 +10,7 @@ export default async function PortalInside({ children, params }: { children: Rea
   const { state, portal } = await loadPortal(slug);
   if (!portal) notFound();
   if (state !== "ok") redirect(`/${portal.slug}`);
-  const { models, tours, siteUpdates } = await portalContent(portal);
+  const { models, tours, siteUpdates, progress } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const on = portal.sections;
   const viaFirm =
@@ -19,6 +19,7 @@ export default async function PortalInside({ children, params }: { children: Rea
 
   const tabs: PortalTab[] = [
     { href: `${base}/overview`, label: "Overview" },
+    ...(progress ? [{ href: `${base}/timeline`, label: "Timeline" }] : []),
     ...(on.drawings ? [{ href: `${base}/drawings`, label: "Drawings" }] : []),
     ...(on.models && models.length ? [{ href: `${base}/3d`, label: "3D models" }] : []),
     ...(on.tours && tours.length ? [{ href: `${base}/360`, label: "360° tours" }] : []),

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Box, Orbit } from "lucide-react";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "@/components/drawing-status";
+import { ProgressRing } from "@/components/works-charts";
 import { loadPortal, portalContent } from "@/lib/portal";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 
@@ -18,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PortalOverview({ params }: Props) {
   const { portal } = await loadPortal((await params).slug);
   if (!portal) notFound();
-  const { models, tours, register, siteUpdates } = await portalContent(portal);
+  const { models, tours, register, siteUpdates, progress } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const file = (id: string) => `${base}/f/${id}`;
   const on = portal.sections;
@@ -100,6 +101,30 @@ export default async function PortalOverview({ params }: Props) {
         </div>
 
         <div className="grid min-w-0 grid-cols-1 gap-3">
+          {progress ? (
+            <section className="card p-5" aria-labelledby="timeline-title">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4">
+                <h2 id="timeline-title" className="card-title">Work progress</h2>
+                <Link href={`${base}/timeline`} className="text-sm font-medium hover:underline">
+                  Timeline
+                </Link>
+              </div>
+              <div className="flex items-center gap-5">
+                <ProgressRing pct={progress.pct} size={112} caption="complete" />
+                <div className="min-w-0 text-sm">
+                  <p className="num">
+                    <span className="font-semibold">{progress.done}</span> <span className="text-muted">of {progress.total} works completed</span>
+                  </p>
+                  {progress.current[0] ? (
+                    <p className="mt-2 line-clamp-3 text-muted">
+                      <span className="font-medium text-text">On site now: </span>
+                      {progress.current[0].title}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
           {on.site && latest ? (
             <section className="card overflow-hidden" aria-labelledby="site-title">
               {latest.photos[0] ? (

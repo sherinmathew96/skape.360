@@ -13,13 +13,14 @@ type Existing = {
   coverUrl: string | null;
   brief: string | null;
   area: string | null;
-  sections: { drawings: boolean; models: boolean; tours: boolean; site: boolean };
+  sections: { drawings: boolean; models: boolean; tours: boolean; site: boolean; timeline?: boolean };
 } | null;
 
 const SECTIONS = [
   ["drawings", "Drawings", "Drawings marked for clients, with status and current revision"],
   ["models", "3D models", "Every model on the project"],
   ["tours", "360° tours", "Every tour with at least one room"],
+  ["timeline", "Work progress", "The timeline: which works are done, running and next (no rates)"],
   ["site", "Site progress", "Site reports marked for the client"],
 ] as const;
 
@@ -143,10 +144,10 @@ export function PortalSettings({
       <fieldset>
         <legend className="field-label">Show</legend>
         <ul className="space-y-1">
-          {SECTIONS.filter(([key]) => key !== "site" || showSite).map(([key, label, help]) => (
+          {SECTIONS.filter(([key]) => (key !== "site" && key !== "timeline") || showSite).map(([key, label, help]) => (
             <li key={key}>
               <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-ground">
-                <input type="checkbox" name={key} defaultChecked={existing ? existing.sections[key] : true} className="mt-0.5 h-4 w-4 flex-none accent-primary" />
+                <input type="checkbox" name={key} defaultChecked={existing ? existing.sections[key] !== false : true} className="mt-0.5 h-4 w-4 flex-none accent-primary" />
                 <span>
                   <span className="block">{label}</span>
                   <span className="block text-xs text-muted">{help}</span>
