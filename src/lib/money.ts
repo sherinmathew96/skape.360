@@ -8,6 +8,9 @@ const qtyFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 3 });
 
 export const toPaise = (value: string | number) => Math.round(Number(value) * 100);
 export const formatINR = (paise: number) => inr.format(paise / 100);
+const inrWhole = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+/** For headline figures: drops the paise when there are none (₹25,000 rather than ₹25,000.00). */
+export const formatINRShort = (paise: number) => (paise % 100 === 0 ? inrWhole.format(paise / 100) : inr.format(paise / 100));
 export const formatQty = (value: string | number) => qtyFmt.format(Number(value));
 
 export type PricedLine = { quantity: string | number; rate: string | number; gstRate: string | number };

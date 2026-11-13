@@ -12,6 +12,7 @@ import {
   IndianRupee,
   LayoutDashboard,
   ListChecks,
+  NotebookPen,
   Settings,
   ShoppingCart,
   Truck,
@@ -36,6 +37,7 @@ const SETTINGS_PATHS = ["/settings", "/team", "/firms"];
 /** Pages shown to the roles that use them, folded into sections. */
 const OFFICE = {
   firms: { href: "/firms", label: "Firms", icon: Building2 },
+  daybook: { href: "/daybook", label: "Day book", icon: NotebookPen },
   finance: { href: "/finance", label: "Finance", icon: IndianRupee },
   purchasing: { href: "/purchasing", label: "Purchasing", icon: ShoppingCart },
   suppliers: { href: "/suppliers", label: "Suppliers", icon: Truck },
@@ -175,7 +177,7 @@ export function SidebarNav({ myOverdue, office = [], waiting = 0 }: { myOverdue:
     "/tasks": myOverdue > 0 ? { n: myOverdue, label: `${myOverdue} overdue` } : null,
     "/purchasing": waiting > 0 ? { n: waiting, label: `${waiting} requests waiting for approval` } : null,
   };
-  const work: Item[] = (["finance", "purchasing", "suppliers"] as const).filter((k) => office.includes(k)).map((k) => OFFICE[k]);
+  const work: Item[] = (["daybook", "finance", "purchasing", "suppliers"] as const).filter((k) => office.includes(k)).map((k) => OFFICE[k]);
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-1.5">

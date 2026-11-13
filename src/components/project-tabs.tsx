@@ -17,6 +17,7 @@ export function ProjectTabs({ projectId, construction = true, money = false }: {
           { href: `${base}/site`, label: "Site", active: pathname.startsWith(`${base}/site`) },
           { href: `${base}/snags`, label: "Snags", active: pathname.startsWith(`${base}/snags`) },
           { href: `${base}/materials`, label: "Materials", active: pathname.startsWith(`${base}/materials`) },
+          { href: `${base}/daybook`, label: "Day book", active: pathname.startsWith(`${base}/daybook`) },
         ]
       : []),
     ...(money ? [{ href: `${base}/finance`, label: "Finance", active: pathname.startsWith(`${base}/finance`) }] : []),

@@ -811,6 +811,10 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+/** Kinds of money coming in, for the day books. */
+export const INCOME_CATEGORIES = ["client_payment", "advance", "refund", "scrap_sale", "fees", "interest", "other"] as const;
+export type IncomeCategory = (typeof INCOME_CATEGORIES)[number];
+
 /** Money spent outside purchase orders. No project means a studio overhead. */
 export const expenses = pgTable(
   "expenses",
@@ -956,3 +960,26 @@ export const roles = pgTable("roles", {
   system: boolean("system").notNull().default(false),
   createdAt: createdAt(),
 });
+
+/**
+ * Money received outside invoice payments, for the day books: a client's
+ * cash advance on site, a refund, scrap sold, office income. No project
+ * means the office's own book.
+ */
+export const incomes = pgTable(
+  "incomes",
+  {
+    id: id(),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    category: text("category").$type<IncomeCategory>().notNull(),
+    receivedOn: date("received_on").notNull(),
+    amount: money("amount").notNull(),
+    /** Who paid, and what for */
+    description: text("description").notNull(),
+    method: text("method").$type<PaymentMethod>().notNull().default("cash"),
+    receiptFileId: uuid("receipt_file_id").references(() => files.id, { onDelete: "set null" }),
+    recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("incomes_project_idx").on(t.projectId), index("incomes_date_idx").on(t.receivedOn)],
+);
