@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Check } from "lucide-react";
 import { ProgressRing, SectionBars, StatusSplit, WorkSequence, WorksGantt, WORK_STATUS } from "@/components/works-charts";
 import { today as todayIso } from "@/lib/dates";
+import { WorkSectionCard } from "@/components/work-section-card";
 import { loadPortal, portalContent } from "@/lib/portal";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -95,22 +96,19 @@ export default async function PortalTimeline({ params }: Props) {
         <h2 id="works-title" className="card-title mb-3">All works</h2>
         <div className="grid grid-cols-1 gap-3">
           {progress.sections.map((sec, si) => (
-            <details key={sec.name} className="card group overflow-hidden" open={sec.status === "started"}>
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">
-                    <span className="num mr-2">{si + 1}.</span>
-                    {sec.name}
-                  </span>
-                  <span className="num block text-xs text-muted">
-                    {sec.done} of {sec.works.length} sub {sec.works.length === 1 ? "work" : "works"} completed · {Math.floor(sec.pct)}%
-                  </span>
-                </span>
-                <span className={WORK_STATUS[sec.status].pill}>{WORK_STATUS[sec.status].label}</span>
-              </summary>
+            <WorkSectionCard
+              key={sec.name}
+              heading="h3"
+              number={si + 1}
+              name={sec.name}
+              done={sec.done}
+              total={sec.works.length}
+              pct={sec.pct}
+              pill={<span className={WORK_STATUS[sec.status].pill}>{WORK_STATUS[sec.status].label}</span>}
+            >
               <ol>
                 {sec.works.map((w, i) => (
-                  <li key={w.id} className="flex items-start gap-3 border-t border-rule px-5 py-3">
+                  <li key={w.id} className="flex items-start gap-3 border-t border-rule px-5 py-3 first:border-t-0">
                     <span className="num w-8 flex-none pt-px text-xs font-medium text-muted">{si + 1}.{i + 1}</span>
                     <span
                       className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${w.status === "done" ? "border-transparent text-white" : ""}`}
@@ -128,7 +126,7 @@ export default async function PortalTimeline({ params }: Props) {
                   </li>
                 ))}
               </ol>
-            </details>
+            </WorkSectionCard>
           ))}
         </div>
       </section>

@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, CircleAlert, Plus } from "lucide-react";
 import { deleteSection, deleteWork, moveSection, moveWork, setWorkStatus } from "@/app/works-actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { ProjectHeader } from "@/components/project-header";
+import { WorkSectionCard } from "@/components/work-section-card";
 import { ProgressRing, SectionBars, StatusSplit, WorkSequence, WorksGantt, WorkStatusPill } from "@/components/works-charts";
 import { AddHeadingForm, AddSubWorkForm, BoqImport, RenameSectionForm, WorkEditor } from "@/components/works-forms";
 import { requireUser } from "@/lib/auth";
@@ -79,7 +80,7 @@ export default async function ProjectTimelinePage({ params }: { params: Promise<
       w.completedOn ? `Done ${d(w.completedOn)}` : null,
     ].filter(Boolean);
     return (
-      <li key={w.id} className="border-t border-rule py-4 pl-5 pr-5 md:pl-6 md:pr-6">
+      <li key={w.id} className="border-t border-rule py-4 first:border-t-0 pl-5 pr-5 md:pl-6 md:pr-6">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
           <span className="num w-10 flex-none pt-0.5 text-sm font-medium text-muted">{num}</span>
           <div className="min-w-0 flex-1 basis-[220px]">
@@ -210,28 +211,21 @@ export default async function ProjectTimelinePage({ params }: { params: Promise<
           <div className={`grid grid-cols-1 items-start gap-6 ${canWrite ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
             <div className="grid min-w-0 grid-cols-1 gap-6">
               {sum.sections.map((sec, si) => (
-                <section key={sec.name} className="card overflow-hidden" aria-labelledby={`sec-${si}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pb-4 pt-5 md:px-6">
-                    <div className="min-w-0">
-                      <h2 id={`sec-${si}`} className="card-title">
-                        <span className="num mr-2">{si + 1}.</span>
-                        {sec.name}
-                      </h2>
-                      <p className="num text-xs text-muted">
-                        {sec.done} of {sec.works.length} sub {sec.works.length === 1 ? "work" : "works"} completed · {Math.floor(sec.pct)}%
-                        {sec.started ? ` · ${sec.started} in progress` : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <WorkStatusPill status={sec.status} />
-                      {canWrite ? (
-                        <MoveButtons action={moveSection} hidden={{ projectId: project.id, section: sec.name }} first={si === 0} last={si === sum.sections.length - 1} what="main work" />
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="mx-5 mb-4 h-1.5 overflow-hidden rounded-full bg-raised md:mx-6" aria-hidden="true">
-                    <div className="h-full rounded-full" style={{ width: `${sec.pct}%`, background: sec.status === "done" ? "#00b087" : "var(--primary)" }} />
-                  </div>
+                <WorkSectionCard
+                  key={sec.name}
+                  number={si + 1}
+                  name={sec.name}
+                  done={sec.done}
+                  total={sec.works.length}
+                  pct={sec.pct}
+                  started={sec.started}
+                  pill={<WorkStatusPill status={sec.status} />}
+                  actions={
+                    canWrite ? (
+                      <MoveButtons action={moveSection} hidden={{ projectId: project.id, section: sec.name }} first={si === 0} last={si === sum.sections.length - 1} what={sec.name} />
+                    ) : null
+                  }
+                >
                   <ol>{sec.works.map((w, i, list) => row(w, `${si + 1}.${i + 1}`, i, list))}</ol>
                   {canWrite ? (
                     <div className="flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-rule px-5 py-4 md:px-6">
@@ -259,7 +253,7 @@ export default async function ProjectTimelinePage({ params }: { params: Promise<
                       </details>
                     </div>
                   ) : null}
-                </section>
+                </WorkSectionCard>
               ))}
             </div>
 
