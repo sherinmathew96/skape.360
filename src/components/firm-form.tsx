@@ -32,7 +32,7 @@ export function FirmForm({ host, firm }: { host: string; firm?: Firm }) {
 
   return (
     <ActionForm
-      key={firm ? `${firm.slug}|${firm.hasPasscode}|${firm.enabled}` : "new"}
+      key={firm ? firm.id : "new"}
       action={firm ? updateFirm : createFirm}
       submitLabel={firm ? "Save" : "Add firm"}
       pendingLabel="Saving…"
