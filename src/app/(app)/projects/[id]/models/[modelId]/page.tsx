@@ -25,8 +25,8 @@ export default async function ModelPage({ params }: Props) {
   const model = await getModel(project.id, modelId);
   if (!model) notFound();
 
-  const canShare = can(user.role, "share.manage");
-  const canManage = can(user.role, "studio.manage");
+  const canShare = can(user, "share.manage");
+  const canManage = can(user, "studio.manage");
   const [origin, embedToken] = await Promise.all([
     appOrigin(),
     canShare ? findEmbedLink(project.id, "model", model.id) : Promise.resolve(null),

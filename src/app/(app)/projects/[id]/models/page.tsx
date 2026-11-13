@@ -19,7 +19,7 @@ export default async function ModelsPage({ params }: { params: Promise<{ id: str
   const project = await visibleProject(user, (await params).id);
   if (!project) notFound();
   const models = await listModels(project.id);
-  const manage = can(user.role, "studio.manage");
+  const manage = can(user, "studio.manage");
 
   return (
     <div className="mx-auto max-w-[1136px]">

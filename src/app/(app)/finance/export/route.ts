@@ -21,7 +21,7 @@ const csv = (rows: (string | number | null | undefined)[][]) => rows.map((r) => 
 /** CSV files of the financial year's money, for the accountant. */
 export async function GET(request: Request) {
   const user = await getUser();
-  if (!user || !can(user.role, "finance.view")) return new Response("Not found", { status: 404 });
+  if (!user || !can(user, "finance.view")) return new Response("Not found", { status: 404 });
 
   const url = new URL(request.url);
   const type = url.searchParams.get("type");

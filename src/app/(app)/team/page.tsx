@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import { createStaff, updateStaff } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
-import { ROLES } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { listStaff } from "@/lib/data";
-import { can, ROLE_LABEL } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
+import { listRoles } from "@/lib/roles";
+import { TeamTabs } from "@/components/team-tabs";
 
 export const metadata: Metadata = { title: "Team" };
 
 export default async function TeamPage() {
   const user = await requireUser();
-  const staff = await listStaff();
-  const manage = can(user.role, "staff.manage");
+  const [staff, roles] = await Promise.all([listStaff(), listRoles()]);
+  const manage = can(user, "staff.manage");
   const visible = manage ? staff : staff.filter((p) => p.active);
   const activeCount = staff.filter((p) => p.active).length;
 
@@ -25,6 +26,7 @@ export default async function TeamPage() {
           {manage && staff.length > activeCount ? `, ${staff.length - activeCount} deactivated` : ""}
         </p>
       </div>
+      <TeamTabs showRoles={manage} />
 
       <div className={`grid grid-cols-1 items-start gap-3 ${manage ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
         <section className="card" aria-label="Staff">
@@ -56,8 +58,8 @@ export default async function TeamPage() {
                     <input type="hidden" name="id" value={p.id} />
                     <label htmlFor={`role-${p.id}`} className="sr-only">Role for {p.name}</label>
                     <select id={`role-${p.id}`} name="role" defaultValue={p.role} className="field w-auto min-w-0 flex-1 sm:w-40 sm:flex-none">
-                      {ROLES.map((role) => (
-                        <option key={role} value={role}>{ROLE_LABEL[role]}</option>
+                      {roles.map((r) => (
+                        <option key={r.key} value={r.key}>{r.name}</option>
                       ))}
                     </select>
                     <label htmlFor={`active-${p.id}`} className="sr-only">Access for {p.name}</label>
@@ -68,7 +70,7 @@ export default async function TeamPage() {
                     <button type="submit" className="btn btn-secondary h-10 md:h-9">Save</button>
                   </form>
                 ) : (
-                  <span className="pill">{ROLE_LABEL[p.role]}</span>
+                  <span className="pill">{p.roleName}</span>
                 )}
               </li>
             ))}
@@ -91,9 +93,9 @@ export default async function TeamPage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <div>
                   <label htmlFor="staff-role" className="field-label">Role</label>
-                  <select id="staff-role" name="role" defaultValue="architect" className="field">
-                    {ROLES.map((role) => (
-                      <option key={role} value={role}>{ROLE_LABEL[role]}</option>
+                  <select id="staff-role" name="role" defaultValue={roles.some((r) => r.key === "architect") ? "architect" : roles[0]?.key} className="field">
+                    {roles.map((r) => (
+                      <option key={r.key} value={r.key}>{r.name}</option>
                     ))}
                   </select>
                 </div>

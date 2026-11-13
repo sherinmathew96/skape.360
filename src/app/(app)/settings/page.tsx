@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  if (!can(user.role, "staff.manage")) redirect("/");
+  if (!can(user, "staff.manage")) redirect("/");
   const b = await getBusinessSettings();
 
   return (

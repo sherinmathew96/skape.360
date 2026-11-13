@@ -385,13 +385,13 @@ export async function addExpense(input: {
   // Studio overheads are for finance staff; project expenses for the project's team or finance.
   let projectId: string | null = null;
   if (v.projectId) {
-    if (can(user.role, "finance.manage")) {
+    if (can(user, "finance.manage")) {
       if (!(await visibleProject(user, v.projectId))) return { error: "That project was not found." };
     } else {
       await requireProjectMember(v.projectId);
     }
     projectId = v.projectId;
-  } else if (!can(user.role, "finance.manage")) {
+  } else if (!can(user, "finance.manage")) {
     return { error: "Choose the project this was spent on." };
   }
 
@@ -423,7 +423,7 @@ export async function deleteExpense(formData: FormData) {
   const [row] = await db.select().from(s.expenses).where(eq(s.expenses.id, id));
   if (!row) return;
   const own = row.recordedBy === user.id && row.createdAt.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
-  if (!can(user.role, "finance.manage") && !own) throw new Error("Ask the accounts team to remove this expense.");
+  if (!can(user, "finance.manage") && !own) throw new Error("Ask the accounts team to remove this expense.");
   await db.delete(s.expenses).where(eq(s.expenses.id, id));
   await audit(user, "delete", "expense", id, { amount: row.amount });
   refreshAll();

@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "New supplier bill" };
 
 export default async function NewBillPage({ searchParams }: { searchParams: Promise<{ po?: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "finance.manage")) redirect("/finance");
+  if (!can(user, "finance.manage")) redirect("/finance");
   const [projects, suppliers, orders] = await Promise.all([
     listProjects(user),
     listSuppliers(),

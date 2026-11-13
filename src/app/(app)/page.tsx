@@ -109,7 +109,7 @@ export default async function OverviewPage() {
           <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">Overview</h1>
           <p className="mt-1 text-muted">{finding}</p>
         </div>
-        {can(user.role, "projects.create") ? (
+        {can(user, "projects.create") ? (
           <Link href="/projects/new" className="btn btn-primary h-11 px-5">
             <Plus size={18} strokeWidth={1.8} aria-hidden="true" />
             New project

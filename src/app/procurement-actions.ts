@@ -118,7 +118,7 @@ export async function saveSupplier(_: FormState, formData: FormData): Promise<Fo
 
 export async function createRequest(_: FormState, formData: FormData): Promise<FormState> {
   const { user, project } = await requireProjectMember(String(formData.get("projectId")));
-  if (!can(user.role, "site.report") && !can(user.role, "procurement.manage")) {
+  if (!can(user, "site.report") && !can(user, "procurement.manage")) {
     return { error: "Only site engineers and project managers raise material requests." };
   }
   const lines = readLines(formData, ["description", "quantity", "unit"]);
@@ -317,7 +317,7 @@ export async function recordDelivery(input: {
   if (!found || !(await visibleProject(user, found.po.projectId))) return { error: "That order was not found." };
   const { po, items } = found;
   const allowed =
-    can(user.role, "procurement.manage") || (can(user.role, "site.report") && (await isProjectMember(user.id, po.projectId)));
+    can(user, "procurement.manage") || (can(user, "site.report") && (await isProjectMember(user.id, po.projectId)));
   if (!allowed) return { error: "Only the project's site team or purchasing can record deliveries." };
   if (po.status !== "issued" && po.status !== "partly_received") return { error: "Deliveries can only be recorded on issued orders." };
 

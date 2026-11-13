@@ -24,7 +24,7 @@ export default async function SharingPage({ params }: { params: Promise<{ id: st
   const user = await requireUser();
   const project = await visibleProject(user, (await params).id);
   if (!project) notFound();
-  const manage = can(user.role, "share.manage");
+  const manage = can(user, "share.manage");
 
   const [portal, links, models, tours, drawings, origin] = await Promise.all([
     getProjectPortal(project.id),

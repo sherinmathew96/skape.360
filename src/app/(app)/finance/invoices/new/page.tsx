@@ -16,7 +16,7 @@ type Props = { searchParams: Promise<{ project?: string; milestone?: string }> }
 
 export default async function NewInvoicePage({ searchParams }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "finance.manage")) redirect("/finance");
+  if (!can(user, "finance.manage")) redirect("/finance");
   const { project: projectId, milestone } = await searchParams;
   const found = projectId ? await getProject(user, projectId) : null;
   if (!found) notFound();

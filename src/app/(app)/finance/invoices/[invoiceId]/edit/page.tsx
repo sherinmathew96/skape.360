@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Edit invoice" };
 
 export default async function EditInvoicePage({ params }: { params: Promise<{ invoiceId: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "finance.manage")) redirect("/finance");
+  if (!can(user, "finance.manage")) redirect("/finance");
   const inv = await getInvoice((await params).invoiceId);
   if (!inv) notFound();
   if (inv.status !== "draft") redirect(`/finance/invoices/${inv.id}`);

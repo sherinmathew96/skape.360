@@ -26,7 +26,7 @@ const refresh = (projectId: string) => revalidatePath(`/projects/${projectId}`, 
 /** Site reports: the project's team, with the site-report permission. */
 async function requireSiteWriter(projectId: string) {
   const ctx = await requireProjectMember(projectId);
-  if (!can(ctx.user.role, "site.report")) throw new Error("Only site engineers and project managers write site reports.");
+  if (!can(ctx.user, "site.report")) throw new Error("Only site engineers and project managers write site reports.");
   return ctx;
 }
 
@@ -199,7 +199,7 @@ async function requireSnag(projectId: string, snagId: string) {
 export async function markSnagFixed(input: { projectId: string; snagId: string; note: string; photoFileId: string | null }) {
   const { user, project, snag } = await requireSnag(input.projectId, input.snagId);
   if (snag.status !== "open") return { error: "This snag is not open." };
-  if (snag.assigneeId !== user.id && !can(user.role, "site.report") && !can(user.role, "projects.edit")) {
+  if (snag.assigneeId !== user.id && !can(user, "site.report") && !can(user, "projects.edit")) {
     return { error: "Only the person it's assigned to, site staff or a manager can mark it fixed." };
   }
   const photo = input.photoFileId ? await claimUploadedFile(user, project.id, input.photoFileId) : null;
@@ -217,7 +217,7 @@ export async function markSnagFixed(input: { projectId: string; snagId: string; 
 export async function reviewSnag(formData: FormData) {
   const { user, project, snag } = await requireSnag(String(formData.get("projectId")), String(formData.get("snagId")));
   const decision = z.enum(["close", "reopen"]).parse(formData.get("decision"));
-  if (snag.createdBy !== user.id && !can(user.role, "projects.edit")) {
+  if (snag.createdBy !== user.id && !can(user, "projects.edit")) {
     throw new Error("Only the person who raised it or a project manager can do that.");
   }
   const db = await getDb();

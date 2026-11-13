@@ -14,7 +14,7 @@ export function ExpenseList({ expenses, user, showProject = true }: { expenses: 
   return (
     <ul>
       {expenses.map((e) => {
-        const removable = can(user.role, "finance.manage") || (e.recordedBy === user.id && e.createdAt.toISOString().slice(0, 10) === todayIso);
+        const removable = can(user, "finance.manage") || (e.recordedBy === user.id && e.createdAt.toISOString().slice(0, 10) === todayIso);
         return (
           <li key={e.id} className="flex items-center gap-3 border-t border-rule px-5 py-2.5 first:border-t-0">
             <div className="min-w-0 flex-1">

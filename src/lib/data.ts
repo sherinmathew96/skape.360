@@ -9,7 +9,7 @@ import { today } from "./dates";
 /** Projects the user may see: all of them, or only those they are on. */
 function visibleProjects(user: SessionUser) {
   const notDeleted = isNull(s.projects.deletedAt);
-  if (can(user.role, "projects.view_all")) return notDeleted;
+  if (can(user, "projects.view_all")) return notDeleted;
   return and(
     notDeleted,
     sql`${s.projects.id} in (select ${s.projectMembers.projectId} from ${s.projectMembers} where ${s.projectMembers.userId} = ${user.id})`,
@@ -202,9 +202,10 @@ export async function getProject(user: SessionUser, id: string) {
       .where(eq(s.tasks.projectId, id))
       .orderBy(sql`(${s.tasks.status} = 'done') asc`, sql`${s.tasks.dueDate} asc nulls last`),
     db
-      .select({ id: s.users.id, name: s.users.name, role: s.users.role, title: s.users.title })
+      .select({ id: s.users.id, name: s.users.name, role: s.users.role, roleName: sql<string>`coalesce(${s.roles.name}, ${s.users.role})`, title: s.users.title })
       .from(s.projectMembers)
       .innerJoin(s.users, eq(s.users.id, s.projectMembers.userId))
+      .leftJoin(s.roles, eq(s.roles.key, s.users.role))
       .where(eq(s.projectMembers.projectId, id))
       .orderBy(asc(s.users.name)),
   ]);
@@ -229,6 +230,7 @@ export async function listStaff() {
       name: s.users.name,
       email: s.users.email,
       role: s.users.role,
+      roleName: sql<string>`coalesce(${s.roles.name}, ${s.users.role})`,
       title: s.users.title,
       phone: s.users.phone,
       active: s.users.active,
@@ -236,6 +238,7 @@ export async function listStaff() {
       openTasks: sql<number>`(select count(*) from ${s.tasks} t where t.assignee_id = "users"."id" and t.status <> 'done')::int`,
     })
     .from(s.users)
+    .leftJoin(s.roles, eq(s.roles.key, s.users.role))
     .orderBy(sql`${s.users.active} desc`, asc(s.users.name));
 }
 

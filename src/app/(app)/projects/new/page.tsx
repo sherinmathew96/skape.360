@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { listClients, listStaff } from "@/lib/data";
 import { listFirms } from "@/lib/firms";
 import { today } from "@/lib/dates";
-import { can, ROLE_LABEL } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { PROJECT_TYPE_LABEL, STAGE_TEMPLATES } from "@/lib/stages";
 import { PROJECT_TYPES } from "@/db/schema";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "New project" };
 
 export default async function NewProjectPage() {
   const user = await requireUser();
-  if (!can(user.role, "projects.create")) redirect("/projects");
+  if (!can(user, "projects.create")) redirect("/projects");
 
   const [clients, staff, firms] = await Promise.all([listClients(), listStaff(), listFirms()]);
   const leads = staff.filter((p) => p.active);
@@ -91,7 +91,7 @@ export default async function NewProjectPage() {
                 <label htmlFor="leadId" className="field-label">Project lead</label>
                 <select id="leadId" name="leadId" defaultValue={user.id} className="field">
                   {leads.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({ROLE_LABEL[p.role]})</option>
+                    <option key={p.id} value={p.id}>{p.name} ({p.roleName})</option>
                   ))}
                 </select>
               </div>

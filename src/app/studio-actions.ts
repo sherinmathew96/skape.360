@@ -57,7 +57,7 @@ export async function startUpload(input: {
     user = await requirePermission("expense.add");
     if (input.projectId === null) {
       project = null;
-    } else if (can(user.role, "finance.manage")) {
+    } else if (can(user, "finance.manage")) {
       project = await visibleProject(user, uuid.parse(input.projectId));
       if (!project) throw new Error("That project was not found.");
     } else {

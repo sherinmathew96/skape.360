@@ -19,7 +19,7 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short
 
 export default async function FirmPage({ params }: { params: Promise<{ firmId: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "projects.create")) redirect("/");
+  if (!can(user, "projects.create")) redirect("/");
   const firm = await getFirm((await params).firmId);
   if (!firm) notFound();
   const [projects, all, origin] = await Promise.all([firmProjects(firm.id), listProjects(user), appOrigin()]);

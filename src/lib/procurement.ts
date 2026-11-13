@@ -231,5 +231,5 @@ export async function getPurchaseOrder(poId: string) {
 
 /** Who may open a purchase order: purchasing staff, or the project's site team. */
 export function canSeeOrders(user: SessionUser) {
-  return can(user.role, "procurement.manage") || can(user.role, "procurement.prices") || can(user.role, "site.report");
+  return can(user, "procurement.manage") || can(user, "procurement.prices") || can(user, "site.report");
 }

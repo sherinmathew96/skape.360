@@ -23,8 +23,8 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
   const tour = await getTour(project.id, tourId);
   if (!tour) notFound();
 
-  const manage = can(user.role, "studio.manage");
-  const canShare = can(user.role, "share.manage");
+  const manage = can(user, "studio.manage");
+  const canShare = can(user, "share.manage");
   const [origin, embedToken] = await Promise.all([
     appOrigin(),
     canShare ? findEmbedLink(project.id, "tour", tour.id) : Promise.resolve(null),

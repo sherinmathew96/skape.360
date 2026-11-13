@@ -30,7 +30,7 @@ async function requireStudio(projectId: string) {
   const user = await requireUser();
   const project = await visibleProject(user, uuid.parse(projectId));
   if (!project) throw new Error("That project was not found.");
-  const allowed = can(user.role, "studio.manage") || can(user.role, "projects.edit") || (await isProjectMember(user.id, project.id));
+  const allowed = can(user, "studio.manage") || can(user, "projects.edit") || (await isProjectMember(user.id, project.id));
   if (!allowed) throw new Error("Only the project's team can change its drawings.");
   return { user, project };
 }

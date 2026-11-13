@@ -22,8 +22,8 @@ export default async function MaterialsPage({ params }: { params: Promise<{ id: 
   const [requests, orders] = await Promise.all([listRequests({ projectId: project.id }), listPurchaseOrders({ projectId: project.id })]);
 
   const onTeam = members.some((m) => m.id === user.id);
-  const canRequest = (onTeam || can(user.role, "projects.edit")) && (can(user.role, "site.report") || can(user.role, "procurement.manage"));
-  const prices = can(user.role, "procurement.prices");
+  const canRequest = (onTeam || can(user, "projects.edit")) && (can(user, "site.report") || can(user, "procurement.manage"));
+  const prices = can(user, "procurement.prices");
   const t = today();
   const waiting = requests.filter((r) => r.status === "requested").length;
   const due = orders.filter((o) => o.status === "issued" || o.status === "partly_received").length;

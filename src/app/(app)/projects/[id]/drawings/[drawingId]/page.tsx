@@ -34,7 +34,7 @@ export default async function DrawingPage({ params, searchParams }: Props) {
   const latest = revisions[0] ?? null;
   const wanted = Number((await searchParams).rev);
   const shown = revisions.find((r) => r.rev === wanted) ?? latest;
-  const edit = can(user.role, "studio.manage") || can(user.role, "projects.edit") || member;
+  const edit = can(user, "studio.manage") || can(user, "projects.edit") || member;
   const base = `/projects/${project.id}/drawings/${drawing.id}`;
   const name = drawing.number ? `${drawing.number} ${drawing.title}` : drawing.title;
   const group = groups.find((g) => g.id === drawing.groupId)?.name ?? "General";

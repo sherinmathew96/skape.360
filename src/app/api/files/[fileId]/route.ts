@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ fileId: 
   const allowed =
     file &&
     (isReceipt
-      ? can(user.role, "finance.view") || file.uploadedBy === user.id
+      ? can(user, "finance.view") || file.uploadedBy === user.id
       : file.projectId
         ? await visibleProject(user, file.projectId)
         : false);

@@ -19,11 +19,11 @@ export const metadata: Metadata = { title: "Invoice" };
 
 export default async function InvoicePage({ params }: { params: Promise<{ invoiceId: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) redirect("/");
+  if (!can(user, "finance.view")) redirect("/");
   const inv = await getInvoice((await params).invoiceId);
   if (!inv || !(await visibleProject(user, inv.projectId))) notFound();
   const studio = await getBusinessSettings();
-  const manage = can(user.role, "finance.manage");
+  const manage = can(user, "finance.manage");
   const t = today();
   const split = splitGst(inv.totals.gst, studio.stateCode, inv.placeOfSupply);
   const settled = inv.received + inv.tds;

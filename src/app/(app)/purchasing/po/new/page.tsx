@@ -15,7 +15,7 @@ type Props = { searchParams: Promise<{ request?: string; project?: string }> };
 
 export default async function NewPoPage({ searchParams }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "procurement.manage")) redirect("/purchasing");
+  if (!can(user, "procurement.manage")) redirect("/purchasing");
   const { request: requestId, project: projectParam } = await searchParams;
 
   const [projects, suppliers] = await Promise.all([listProjects(user), listSuppliers({ activeOnly: true })]);

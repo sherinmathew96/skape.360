@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Role } from "@/db/schema";
-import { can, type Permission } from "./permissions";
+import { ADMIN_ROLE, ALL_PERMISSIONS, can, isPermission, type Permission } from "./permissions";
 
 const COOKIE = "skape_session";
 const SESSION_DAYS = 30;
@@ -16,6 +16,10 @@ export type SessionUser = {
   name: string;
   email: string;
   role: Role;
+  /** The role's name as the studio wrote it, e.g. "Interior designer" */
+  roleName: string;
+  /** What this role may do, read fresh on every request */
+  permissions: Permission[];
   title: string | null;
 };
 
@@ -62,9 +66,12 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
       email: schema.users.email,
       role: schema.users.role,
       title: schema.users.title,
+      roleName: schema.roles.name,
+      rolePermissions: schema.roles.permissions,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
+    .leftJoin(schema.roles, eq(schema.roles.key, schema.users.role))
     .where(
       and(
         eq(schema.sessions.id, hashToken(token)),
@@ -72,7 +79,14 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
         eq(schema.users.active, true),
       ),
     );
-  return row ?? null;
+  if (!row) return null;
+  const { rolePermissions, roleName, ...user } = row;
+  return {
+    ...user,
+    roleName: roleName ?? user.role,
+    // Admin always has everything; an unknown role has nothing.
+    permissions: user.role === ADMIN_ROLE ? ALL_PERMISSIONS : (rolePermissions ?? []).filter(isPermission),
+  };
 });
 
 /** For pages and actions that need a signed-in user. */
@@ -85,7 +99,7 @@ export async function requireUser(): Promise<SessionUser> {
 /** For actions: throws when the signed-in user lacks the permission. */
 export async function requirePermission(permission: Permission): Promise<SessionUser> {
   const user = await requireUser();
-  if (!can(user.role, permission)) {
+  if (!can(user, permission)) {
     throw new Error("You do not have permission to do that.");
   }
   return user;

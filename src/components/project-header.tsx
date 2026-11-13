@@ -18,7 +18,7 @@ export async function ProjectHeader({
   badge?: React.ReactNode;
 }) {
   const user = await getUser();
-  const money = user ? can(user.role, "finance.view") : false;
+  const money = user ? can(user, "finance.view") : false;
   return (
     <div className="mb-6">
       <p className="mb-2 truncate text-muted">

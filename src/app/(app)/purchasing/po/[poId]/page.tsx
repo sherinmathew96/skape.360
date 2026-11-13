@@ -20,9 +20,9 @@ export default async function PoPage({ params }: { params: Promise<{ poId: strin
   if (!found || !canSeeOrders(user) || !(await visibleProject(user, found.po.projectId))) notFound();
   const { po, items, receipts } = found;
 
-  const buyer = can(user.role, "procurement.manage");
-  const prices = can(user.role, "procurement.prices");
-  const onSite = can(user.role, "site.report") && (await isProjectMember(user.id, po.projectId));
+  const buyer = can(user, "procurement.manage");
+  const prices = can(user, "procurement.prices");
+  const onSite = can(user, "site.report") && (await isProjectMember(user.id, po.projectId));
   const open = po.status === "issued" || po.status === "partly_received";
   const totals = orderTotals(items);
   const t = today();

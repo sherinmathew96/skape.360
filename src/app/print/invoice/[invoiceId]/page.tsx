@@ -14,7 +14,7 @@ type Props = { params: Promise<{ invoiceId: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // The invoice number becomes the PDF's file name; only for someone allowed to see it.
   const user = await getUser();
-  const inv = user && can(user.role, "finance.view") ? await getInvoice((await params).invoiceId) : null;
+  const inv = user && can(user, "finance.view") ? await getInvoice((await params).invoiceId) : null;
   const ok = inv && user && (await visibleProject(user, inv.projectId));
   return { title: { absolute: ok && inv.number ? inv.number.replaceAll("/", "-") : "Invoice" } };
 }
@@ -25,7 +25,7 @@ const fmtDate = (iso: string) => dateFmt.format(new Date(`${iso}T00:00:00Z`));
 /** A4 tax invoice in the usual Indian layout: CGST + SGST or IGST, amount in words, bank details. */
 export default async function PrintInvoicePage({ params }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) notFound();
+  if (!can(user, "finance.view")) notFound();
   const inv = await getInvoice((await params).invoiceId);
   if (!inv || !(await visibleProject(user, inv.projectId))) notFound();
   const b = await getBusinessSettings();

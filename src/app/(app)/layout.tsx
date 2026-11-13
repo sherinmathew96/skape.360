@@ -7,7 +7,7 @@ import { BottomNav, SettingsLink, SidebarNav } from "@/components/nav";
 import { requireUser } from "@/lib/auth";
 import { listOpenTasks } from "@/lib/data";
 import { today } from "@/lib/dates";
-import { can, ROLE_LABEL } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { listRequests } from "@/lib/procurement";
 import type { OfficeLink } from "@/components/nav";
 
@@ -24,12 +24,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const myOverdue = mine.filter((task) => task.dueDate && task.dueDate < t).length;
 
   const office: OfficeLink[] = [];
-  if (can(user.role, "projects.create")) office.push("firms");
-  if (can(user.role, "finance.view")) office.push("finance");
-  const buyer = can(user.role, "procurement.manage");
-  if (buyer || can(user.role, "procurement.prices")) office.push("purchasing");
+  if (can(user, "projects.create")) office.push("firms");
+  if (can(user, "finance.view")) office.push("finance");
+  const buyer = can(user, "procurement.manage");
+  if (buyer || can(user, "procurement.prices")) office.push("purchasing");
   if (buyer) office.push("suppliers");
-  if (can(user.role, "staff.manage")) office.push("settings");
+  if (can(user, "staff.manage")) office.push("settings");
   const waiting = buyer ? (await listRequests({ status: ["requested"] })).length : 0;
 
   return (
@@ -60,7 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Avatar name={user.name} size={40} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium leading-5">{user.name}</span>
-            <span className="block truncate text-xs leading-4 text-muted">{ROLE_LABEL[user.role]}</span>
+            <span className="block truncate text-xs leading-4 text-muted">{user.roleName}</span>
           </span>
           <form action={logout}>
             <button type="submit" aria-label="Sign out" title="Sign out" className="btn btn-quiet h-10 w-10 p-0 text-muted">

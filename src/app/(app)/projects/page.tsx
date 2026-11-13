@@ -30,7 +30,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   }
   const groups = [...firmGroups.values()].sort((a, b) => (a.firmId === null ? 1 : b.firmId === null ? -1 : a.title.localeCompare(b.title)));
   const late = projects.reduce((n, p) => n + p.tasksOverdue, 0);
-  const canCreate = can(user.role, "projects.create");
+  const canCreate = can(user, "projects.create");
 
   return (
     <div className="mx-auto max-w-[1136px]">

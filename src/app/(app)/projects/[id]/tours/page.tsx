@@ -19,7 +19,7 @@ export default async function ToursPage({ params }: { params: Promise<{ id: stri
   const project = await visibleProject(user, (await params).id);
   if (!project) notFound();
   const tours = await listTours(project.id);
-  const manage = can(user.role, "studio.manage");
+  const manage = can(user, "studio.manage");
 
   return (
     <div className="mx-auto max-w-[1136px]">

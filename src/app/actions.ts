@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, asc, count, eq, gt, like, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
-import { PROJECT_TYPES, ROLES, TASK_STATUSES } from "@/db/schema";
+import { PROJECT_TYPES, TASK_STATUSES } from "@/db/schema";
 import {
   createSession,
   destroySession,
@@ -266,7 +266,7 @@ export async function createTask(_: FormState, formData: FormData): Promise<Form
   const found = await getProject(user, input.projectId);
   if (!found) return { error: "That project was not found." };
   const onProject = found.members.some((m) => m.id === user.id);
-  if (!can(user.role, "tasks.manage") && !onProject) {
+  if (!can(user, "tasks.manage") && !onProject) {
     return { error: "Only the project's team can add tasks to it." };
   }
   if (!found.members.some((m) => m.id === input.assigneeId)) {
@@ -293,7 +293,7 @@ export async function setTaskStatus(formData: FormData) {
   if (!task) return;
   const allowed =
     task.assigneeId === user.id ||
-    (can(user.role, "tasks.manage")) ||
+    (can(user, "tasks.manage")) ||
     (await isProjectMember(user.id, task.projectId));
   if (!allowed) throw new Error("You do not have permission to update this task.");
 
@@ -307,19 +307,26 @@ export async function setTaskStatus(formData: FormData) {
 
 // ── Staff ───────────────────────────────────────────────────────────────────
 
+async function roleExists(key: string) {
+  const db = await getDb();
+  const [row] = await db.select({ key: s.roles.key }).from(s.roles).where(eq(s.roles.key, key));
+  return Boolean(row);
+}
+
 export async function createStaff(_: FormState, formData: FormData): Promise<FormState> {
   const admin = await requirePermission("staff.manage");
   const parsed = z
     .object({
       name: z.string().trim().min(2, "Enter the person's name."),
       email: z.string().trim().toLowerCase().email("Enter a valid email address."),
-      role: z.enum(ROLES),
+      role: z.string().trim().min(1, "Choose a role."),
       title: z.string().trim(),
       password: z.string().min(10, "Use a starting password of at least 10 characters."),
     })
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const input = parsed.data;
+  if (!(await roleExists(input.role))) return { error: "That role no longer exists. Pick another." };
 
   const db = await getDb();
   const [existing] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, input.email));
@@ -343,7 +350,8 @@ export async function createStaff(_: FormState, formData: FormData): Promise<For
 export async function updateStaff(formData: FormData) {
   const admin = await requirePermission("staff.manage");
   const id = uuid.parse(formData.get("id"));
-  const role = z.enum(ROLES).parse(formData.get("role"));
+  const role = z.string().trim().min(1).parse(formData.get("role"));
+  if (!(await roleExists(role))) return;
   const active = formData.get("active") === "1";
 
   // An admin cannot lock themselves out.

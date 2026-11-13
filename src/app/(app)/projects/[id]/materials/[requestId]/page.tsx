@@ -21,7 +21,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
   const req = await getRequest(project.id, requestId);
   if (!req) notFound();
   const orders = (await listPurchaseOrders({ projectId: project.id })).filter((o) => o.requestId === req.id);
-  const buyer = can(user.role, "procurement.manage");
+  const buyer = can(user, "procurement.manage");
   const code = requestCode(req.number);
 
   return (

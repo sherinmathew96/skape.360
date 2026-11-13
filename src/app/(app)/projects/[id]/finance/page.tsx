@@ -23,11 +23,11 @@ export const metadata: Metadata = { title: "Project finance" };
 /* The project's money question: how much have we billed and collected, and what has it cost? */
 export default async function ProjectFinancePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) redirect("/");
+  if (!can(user, "finance.view")) redirect("/");
   const found = await getProject(user, (await params).id);
   if (!found) notFound();
   const { project, milestones } = found;
-  const manage = can(user.role, "finance.manage");
+  const manage = can(user, "finance.manage");
   const db = await getDb();
   const [money, [client], studio] = await Promise.all([
     projectMoney(project.id),

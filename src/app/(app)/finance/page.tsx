@@ -16,8 +16,8 @@ export const metadata: Metadata = { title: "Finance" };
 /* The office's money question: who owes us, who do we owe this week, and how is the month going? */
 export default async function FinancePage() {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) redirect("/");
-  const manage = can(user.role, "finance.manage");
+  if (!can(user, "finance.view")) redirect("/");
+  const manage = can(user, "finance.manage");
   const t = today();
   const weekEnd = addDays(t, 7);
   const monthStart = t.slice(0, 7) + "-01";

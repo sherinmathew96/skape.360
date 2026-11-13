@@ -17,8 +17,8 @@ type Props = { searchParams: Promise<{ view?: string }> };
 /* The office's question: what is waiting on us, and what is late from suppliers? */
 export default async function PurchasingPage({ searchParams }: Props) {
   const user = await requireUser();
-  const buyer = can(user.role, "procurement.manage");
-  if (!buyer && !can(user.role, "procurement.prices")) redirect("/");
+  const buyer = can(user, "procurement.manage");
+  if (!buyer && !can(user, "procurement.prices")) redirect("/");
 
   const visible = new Set((await listProjects(user)).map((p) => p.id));
   const [allRequests, allOrders] = await Promise.all([

@@ -63,7 +63,7 @@ function SupplierFields({ s }: { s?: Awaited<ReturnType<typeof listSuppliers>>[n
 
 export default async function SuppliersPage({ searchParams }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "procurement.manage")) redirect("/");
+  if (!can(user, "procurement.manage")) redirect("/");
   const suppliers = await listSuppliers();
   const editId = (await searchParams).edit;
   const editing = suppliers.find((x) => x.id === editId);

@@ -16,10 +16,10 @@ export const metadata: Metadata = { title: "Supplier bill" };
 
 export default async function BillPage({ params }: { params: Promise<{ billId: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) redirect("/");
+  if (!can(user, "finance.view")) redirect("/");
   const bill = await getBill((await params).billId);
   if (!bill || (bill.projectId && !(await visibleProject(user, bill.projectId)))) notFound();
-  const manage = can(user.role, "finance.manage");
+  const manage = can(user, "finance.manage");
   const t = today();
   const late = !bill.cancelled && bill.balance > 0 && bill.dueDate !== null && bill.dueDate < t;
   const po = bill.poId ? await orderValue(bill.poId) : null;

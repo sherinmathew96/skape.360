@@ -20,7 +20,7 @@ import { setProjectFirm } from "@/app/firm-actions";
 import { getProject, listStaff } from "@/lib/data";
 import { listFirms } from "@/lib/firms";
 import { formatDate, formatDue, today } from "@/lib/dates";
-import { can, ROLE_LABEL } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 
 type Props = { params: Promise<{ id: string }> };
@@ -38,9 +38,9 @@ export default async function ProjectPage({ params }: Props) {
 
   const { project, stages, milestones, tasks, members } = found;
   const t = today();
-  const canEdit = can(user.role, "projects.edit");
+  const canEdit = can(user, "projects.edit");
   const onTeam = members.some((m) => m.id === user.id);
-  const canAddTask = can(user.role, "tasks.manage") || onTeam;
+  const canAddTask = can(user, "tasks.manage") || onTeam;
   const stage = currentStage(stages);
   const inProgress = stages.find((s) => s.status === "in_progress");
   const open = tasks.filter((task) => task.status !== "done");
@@ -245,7 +245,7 @@ export default async function ProjectPage({ params }: Props) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{m.name}</p>
                     <p className="truncate text-xs leading-4 text-muted">
-                      {m.id === project.leadId ? "Project lead" : (m.title ?? ROLE_LABEL[m.role])}
+                      {m.id === project.leadId ? "Project lead" : (m.title ?? m.roleName)}
                     </p>
                   </div>
                   {canEdit && m.id !== project.leadId ? (
@@ -267,7 +267,7 @@ export default async function ProjectPage({ params }: Props) {
                   <label htmlFor="member" className="field-label">Add to team</label>
                   <select id="member" name="userId" className="field">
                     {staff.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({ROLE_LABEL[p.role]})</option>
+                      <option key={p.id} value={p.id}>{p.name} ({p.roleName})</option>
                     ))}
                   </select>
                 </div>

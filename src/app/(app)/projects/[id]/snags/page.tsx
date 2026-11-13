@@ -39,7 +39,7 @@ export default async function SnagsPage({ params, searchParams }: Props) {
   const late = snags.filter((sn) => sn.status === "open" && sn.dueDate && sn.dueDate < t).length;
 
   const onTeam = members.some((m) => m.id === user.id);
-  const canRaise = onTeam || can(user.role, "projects.edit");
+  const canRaise = onTeam || can(user, "projects.edit");
   const base = `/projects/${project.id}/snags`;
 
   return (
@@ -77,8 +77,8 @@ export default async function SnagsPage({ params, searchParams }: Props) {
               {shown.map((sn) => {
                 const code = snagCode(sn.number);
                 const isLate = sn.status === "open" && sn.dueDate !== null && sn.dueDate < t;
-                const canFix = sn.status === "open" && (sn.assigneeId === user.id || can(user.role, "site.report") || can(user.role, "projects.edit"));
-                const canReview = sn.status === "fixed" && (sn.createdBy === user.id || can(user.role, "projects.edit"));
+                const canFix = sn.status === "open" && (sn.assigneeId === user.id || can(user, "site.report") || can(user, "projects.edit"));
+                const canReview = sn.status === "fixed" && (sn.createdBy === user.id || can(user, "projects.edit"));
                 return (
                   <li key={sn.id} className="border-t border-rule px-5 py-4 first:border-t-0">
                     <div className="flex gap-3">

@@ -25,7 +25,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
     projectTeam(project.id),
     isProjectMember(user.id, project.id),
   ]);
-  const edit = can(user.role, "studio.manage") || can(user.role, "projects.edit") || member;
+  const edit = can(user, "studio.manage") || can(user, "projects.edit") || member;
   const sections = groupRegister(groups, drawings);
   // Real groups, in order, so the arrows know which is first and last.
   const groupIds = groups.map((g) => g.id);

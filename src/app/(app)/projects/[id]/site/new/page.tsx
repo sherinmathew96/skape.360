@@ -14,7 +14,7 @@ export default async function NewReportPage({ params }: { params: Promise<{ id: 
   const user = await requireUser();
   const project = await visibleProject(user, (await params).id);
   if (!project) notFound();
-  if (!can(user.role, "site.report")) redirect(`/projects/${project.id}/site`);
+  if (!can(user, "site.report")) redirect(`/projects/${project.id}/site`);
 
   // One report per day: open today's if it is already written.
   const existing = await reportOnDate(project.id, today());

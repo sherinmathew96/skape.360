@@ -19,7 +19,7 @@ type Props = { searchParams: Promise<{ month?: string }> };
 
 export default async function ExpensesPage({ searchParams }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "finance.view")) redirect("/");
+  if (!can(user, "finance.view")) redirect("/");
   const t = today();
   const wanted = (await searchParams).month;
   const month = wanted && /^\d{4}-\d{2}$/.test(wanted) ? wanted : t.slice(0, 7);
@@ -85,10 +85,10 @@ export default async function ExpensesPage({ searchParams }: Props) {
           </section>
         </div>
 
-        {can(user.role, "expense.add") ? (
+        {can(user, "expense.add") ? (
           <section className="card p-5" aria-labelledby="add-exp-title">
             <h2 id="add-exp-title" className="card-title mb-4">Record an expense</h2>
-            <ExpenseForm projects={visible.map((p) => ({ id: p.id, name: p.name }))} allowOverhead={can(user.role, "finance.manage")} today={t} defaultCategory="office" />
+            <ExpenseForm projects={visible.map((p) => ({ id: p.id, name: p.name }))} allowOverhead={can(user, "finance.manage")} today={t} defaultCategory="office" />
           </section>
         ) : null}
       </div>

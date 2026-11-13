@@ -26,7 +26,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
   const found = await getReport(project.id, reportId);
   if (!found) notFound();
   const { report, photos } = found;
-  const canWrite = can(user.role, "site.report");
+  const canWrite = can(user, "site.report");
   const editing = canWrite && (await searchParams).edit === "1";
   const base = `/projects/${project.id}/site/${report.id}`;
 

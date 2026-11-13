@@ -20,19 +20,22 @@ const createdAt = () =>
 
 // ── Core ────────────────────────────────────────────────────────────────────
 
-export const ROLES = [
+/** The roles every studio starts with. More can be added on Team → Roles. */
+export const BUILT_IN_ROLES = [
   "admin",
   "project_manager",
   "architect",
   "site_engineer",
   "accountant",
 ] as const;
-export type Role = (typeof ROLES)[number];
+/** A role's key, e.g. "architect" or one the studio made, e.g. "interior-designer". */
+export type Role = string;
 
 export const users = pgTable("users", {
   id: id(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
+  /** Key of a row in roles */
   role: text("role").$type<Role>().notNull(),
   title: text("title"),
   phone: text("phone"),
@@ -918,5 +921,18 @@ export const firms = pgTable("firms", {
   views: integer("views").notNull().default(0),
   lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+// ── Roles: what each kind of staff member can see and do ───────────────────
+
+export const roles = pgTable("roles", {
+  /** "admin", "architect", or made from the name, e.g. "interior-designer" */
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+  /** Permission keys from src/lib/permissions.ts */
+  permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+  /** Built in: can't be deleted; Admin can't be changed */
+  system: boolean("system").notNull().default(false),
   createdAt: createdAt(),
 });

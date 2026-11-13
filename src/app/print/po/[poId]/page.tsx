@@ -12,7 +12,7 @@ type Props = { params: Promise<{ poId: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // The order number becomes the PDF's file name; only shown to someone allowed to see it.
   const user = await getUser();
-  const found = user && can(user.role, "procurement.prices") ? await getPurchaseOrder((await params).poId) : null;
+  const found = user && can(user, "procurement.prices") ? await getPurchaseOrder((await params).poId) : null;
   const ok = found && user && (await visibleProject(user, found.po.projectId));
   return { title: { absolute: ok ? found.po.number : "Purchase order" } };
 }
@@ -23,7 +23,7 @@ const fmtDate = (iso: string) => dateFmt.format(new Date(`${iso}T00:00:00Z`));
 /** A4 purchase order, laid out for printing or "Save as PDF" from the browser. */
 export default async function PrintPoPage({ params }: Props) {
   const user = await requireUser();
-  if (!can(user.role, "procurement.prices")) notFound();
+  if (!can(user, "procurement.prices")) notFound();
   const found = await getPurchaseOrder((await params).poId);
   if (!found || !(await visibleProject(user, found.po.projectId))) notFound();
   const { po, items } = found;

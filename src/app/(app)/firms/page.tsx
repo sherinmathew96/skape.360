@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Firms" };
 /** Contractors and PMCs the studio designs for, each with its own page of projects. */
 export default async function FirmsPage() {
   const user = await requireUser();
-  if (!can(user.role, "projects.create")) redirect("/");
+  if (!can(user, "projects.create")) redirect("/");
   const [firms, origin] = await Promise.all([listFirms(), appOrigin()]);
   const host = origin.replace(/^https?:\/\//, "");
   const projects = firms.reduce((n, f) => n + f.projects, 0);

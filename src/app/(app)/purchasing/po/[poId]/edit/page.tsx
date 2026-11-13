@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Edit purchase order" };
 
 export default async function EditPoPage({ params }: { params: Promise<{ poId: string }> }) {
   const user = await requireUser();
-  if (!can(user.role, "procurement.manage")) redirect("/purchasing");
+  if (!can(user, "procurement.manage")) redirect("/purchasing");
   const found = await getPurchaseOrder((await params).poId);
   if (!found || !(await visibleProject(user, found.po.projectId))) notFound();
   const { po, items } = found;
