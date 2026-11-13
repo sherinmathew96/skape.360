@@ -16,31 +16,10 @@ const isoDate = z
   .string()
   .trim()
   .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Pick a valid date.")
-  .transform((v) => v || null);
-const optNumber = z
-  .union([z.string(), z.number(), z.null()])
   .optional()
-  .transform((v, ctx) => {
-    if (v === null || v === undefined || String(v).trim() === "") return null;
-    const n = Number(String(v).replace(/,/g, ""));
-    if (!Number.isFinite(n) || n < 0 || n > 1e10) {
-      ctx.addIssue({ code: "custom", message: "Enter a valid number." });
-      return z.NEVER;
-    }
-    return n;
-  });
-
-const workFields = z.object({
-  section: z.string().trim().max(120).transform((v) => v || "Works"),
-  code: z.string().trim().max(20).transform((v) => v || null),
-  title: z.string().trim().min(2, "Describe the work.").max(2000),
-  unit: z.string().trim().max(20).transform((v) => v || null),
-  qty: optNumber,
-  rate: optNumber,
-  amount: optNumber,
-  plannedStart: isoDate,
-  plannedEnd: isoDate,
-});
+  .transform((v) => v || null);
+const heading = z.string().trim().min(2, "Name the main work, e.g. Excavation.").max(120);
+const subTitle = z.string().trim().min(2, "Describe the sub work.").max(2000);
 
 /** The project's team with site or project rights, on a construction project. */
 async function requireWorksWriter(projectId: string) {
@@ -58,8 +37,6 @@ async function refresh(projectId: string) {
 }
 
 const money = (n: number | null) => (n === null ? null : n.toFixed(2));
-const amountOf = (v: { qty: number | null; rate: number | null; amount: number | null }) =>
-  v.rate !== null ? (v.qty !== null ? Math.round(v.qty * v.rate * 100) / 100 : v.rate) : v.amount;
 
 /** Writes the project's works in this order, numbering them 1, 2, 3… */
 async function writeOrder(projectId: string, ids: string[]) {
@@ -74,17 +51,51 @@ async function writeOrder(projectId: string, ids: string[]) {
 
 async function orderedIds(projectId: string) {
   const db = await getDb();
-  const rows = await db
+  return db
     .select({ id: s.works.id, section: s.works.section })
     .from(s.works)
     .where(eq(s.works.projectId, projectId))
     .orderBy(asc(s.works.position), asc(s.works.createdAt));
-  return rows;
 }
 
-/** One work or milestone, placed after the last work of its section (or at the end). */
-export async function addWork(_: Result | undefined, formData: FormData): Promise<Result> {
-  const parsed = workFields.safeParse(Object.fromEntries(formData));
+const fail = (err: unknown) => ({ error: err instanceof Error ? err.message : "Not allowed." });
+
+/** A new main work (heading) at the end of the timeline, with its sub works, one per line. */
+export async function addHeading(_: Result | undefined, formData: FormData): Promise<Result> {
+  const parsed = z
+    .object({ section: heading, subs: z.string().max(20000) })
+    .safeParse({ section: formData.get("section") ?? "", subs: formData.get("subs") ?? "" });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  const titles = parsed.data.subs
+    .split(/\r?\n/)
+    .map((t) => t.replace(/^\s*(\d+(\.\d+)*[.)]?|[-•*])\s+/, "").trim())
+    .filter((t) => t.length >= 2)
+    .slice(0, 200);
+  if (!titles.length) return { error: "Add at least one sub work, one per line." };
+  let ctx;
+  try {
+    ctx = await requireWorksWriter(String(formData.get("projectId")));
+  } catch (err) {
+    return fail(err);
+  }
+  const db = await getDb();
+  const projectId = ctx.project.id;
+  const section = parsed.data.section;
+  const [taken] = await db.select({ id: s.works.id }).from(s.works).where(and(eq(s.works.projectId, projectId), eq(s.works.section, section))).limit(1);
+  if (taken) return { error: `“${section}” is already on the timeline. Add sub works under it instead.` };
+  const [end] = await db.select({ p: max(s.works.position) }).from(s.works).where(eq(s.works.projectId, projectId));
+  const start = end?.p ?? 0;
+  await db.insert(s.works).values(titles.map((title, i) => ({ projectId, section, title, position: start + i + 1, updatedBy: ctx.user.id })));
+  await db.insert(s.auditLog).values({ userId: ctx.user.id, action: "create", entity: "work_heading", entityId: projectId, meta: { section, count: titles.length } });
+  await refresh(projectId);
+  return { ok: `${section} added with ${titles.length} ${titles.length === 1 ? "sub work" : "sub works"}.` };
+}
+
+/** One sub work at the end of a main work. */
+export async function addSubWork(_: Result | undefined, formData: FormData): Promise<Result> {
+  const parsed = z
+    .object({ section: heading, title: subTitle, plannedStart: isoDate, plannedEnd: isoDate })
+    .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
   const v = parsed.data;
   if (v.plannedStart && v.plannedEnd && v.plannedEnd < v.plannedStart) return { error: "The planned finish is before the start." };
@@ -92,7 +103,7 @@ export async function addWork(_: Result | undefined, formData: FormData): Promis
   try {
     ctx = await requireWorksWriter(String(formData.get("projectId")));
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Not allowed." };
+    return fail(err);
   }
   const db = await getDb();
   const projectId = ctx.project.id;
@@ -113,24 +124,42 @@ export async function addWork(_: Result | undefined, formData: FormData): Promis
   }
   const [row] = await db
     .insert(s.works)
-    .values({
-      projectId,
-      section: v.section,
-      code: v.code,
-      title: v.title,
-      unit: v.unit,
-      qty: v.qty === null ? null : String(v.qty),
-      rate: money(v.rate),
-      amount: money(amountOf(v)),
-      position,
-      plannedStart: v.plannedStart,
-      plannedEnd: v.plannedEnd,
-      updatedBy: ctx.user.id,
-    })
+    .values({ projectId, section: v.section, title: v.title, position, plannedStart: v.plannedStart, plannedEnd: v.plannedEnd, updatedBy: ctx.user.id })
     .returning({ id: s.works.id });
   await db.insert(s.auditLog).values({ userId: ctx.user.id, action: "create", entity: "work", entityId: row.id, meta: { projectId, title: v.title.slice(0, 80) } });
   await refresh(projectId);
   return { ok: "Added." };
+}
+
+/** Renames a main work; its sub works move with it. */
+export async function renameSection(_: Result | undefined, formData: FormData): Promise<Result> {
+  const parsed = z.object({ from: z.string().min(1), to: heading }).safeParse({ from: formData.get("from"), to: formData.get("to") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  let ctx;
+  try {
+    ctx = await requireWorksWriter(String(formData.get("projectId")));
+  } catch (err) {
+    return fail(err);
+  }
+  const { from, to } = parsed.data;
+  if (from === to) return { ok: "Saved." };
+  const db = await getDb();
+  const [taken] = await db.select({ id: s.works.id }).from(s.works).where(and(eq(s.works.projectId, ctx.project.id), eq(s.works.section, to))).limit(1);
+  if (taken) return { error: `There is already a main work called “${to}”.` };
+  await db.update(s.works).set({ section: to, updatedAt: new Date() }).where(and(eq(s.works.projectId, ctx.project.id), eq(s.works.section, from)));
+  await refresh(ctx.project.id);
+  return { ok: "Saved." };
+}
+
+/** Removes a main work and all its sub works. */
+export async function deleteSection(formData: FormData) {
+  const { user, project } = await requireWorksWriter(String(formData.get("projectId")));
+  const section = String(formData.get("section"));
+  const db = await getDb();
+  await db.delete(s.works).where(and(eq(s.works.projectId, project.id), eq(s.works.section, section)));
+  await db.insert(s.auditLog).values({ userId: user.id, action: "delete", entity: "work_heading", entityId: project.id, meta: { section } });
+  await writeOrder(project.id, (await orderedIds(project.id)).map((r) => r.id));
+  await refresh(project.id);
 }
 
 /** Works read from a pasted BOQ or list, added after the existing ones (or in their place). */
@@ -159,7 +188,7 @@ export async function importWorks(input: {
   try {
     ctx = await requireWorksWriter(input.projectId);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Not allowed." };
+    return fail(err);
   }
   const db = await getDb();
   const projectId = ctx.project.id;
@@ -185,7 +214,7 @@ export async function importWorks(input: {
   );
   await db.insert(s.auditLog).values({ userId: ctx.user.id, action: input.replace ? "replace" : "import", entity: "works", entityId: projectId, meta: { count: rows.data.length } });
   await refresh(projectId);
-  return { ok: `${rows.data.length} ${rows.data.length === 1 ? "work" : "works"} added.` };
+  return { ok: `${rows.data.length} ${rows.data.length === 1 ? "sub work" : "sub works"} added.` };
 }
 
 async function loadWork(id: string) {
@@ -196,7 +225,7 @@ async function loadWork(id: string) {
   return { ...ctx, work };
 }
 
-/** Marks a work started, completed, or back to not started. */
+/** Marks a sub work started, completed, or back to not started. */
 export async function setWorkStatus(formData: FormData) {
   const { user, work } = await loadWork(String(formData.get("id")));
   const status = z.enum(WORK_STATUSES).parse(formData.get("status"));
@@ -216,10 +245,18 @@ export async function setWorkStatus(formData: FormData) {
   await refresh(work.projectId);
 }
 
-/** Edits a work: its words, quantities, planned dates and the actual dates. */
+/** Edits a sub work: its words, main work, planned dates and the actual dates. */
 export async function updateWork(_: Result | undefined, formData: FormData): Promise<Result> {
-  const parsed = workFields
-    .extend({ startedOn: isoDate, completedOn: isoDate, note: z.string().trim().max(1000).transform((v) => v || null) })
+  const parsed = z
+    .object({
+      section: heading,
+      title: subTitle,
+      plannedStart: isoDate,
+      plannedEnd: isoDate,
+      startedOn: isoDate,
+      completedOn: isoDate,
+      note: z.string().trim().max(1000).optional().transform((v) => v || null),
+    })
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
   const v = parsed.data;
@@ -231,23 +268,19 @@ export async function updateWork(_: Result | undefined, formData: FormData): Pro
   try {
     ctx = await loadWork(String(formData.get("id")));
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Not allowed." };
+    return fail(err);
   }
   const status = v.completedOn ? "done" : v.startedOn ? "started" : "pending";
   const db = await getDb();
+  const moved = v.section !== ctx.work.section;
   await db
     .update(s.works)
     .set({
       section: v.section,
-      code: v.code,
       title: v.title,
-      unit: v.unit,
-      qty: v.qty === null ? null : String(v.qty),
-      rate: money(v.rate),
-      amount: money(amountOf(v)),
       plannedStart: v.plannedStart,
       plannedEnd: v.plannedEnd,
-      startedOn: v.startedOn ?? (v.completedOn ? v.completedOn : null),
+      startedOn: v.startedOn ?? v.completedOn,
       completedOn: v.completedOn,
       status,
       note: v.note,
@@ -255,11 +288,19 @@ export async function updateWork(_: Result | undefined, formData: FormData): Pro
       updatedAt: new Date(),
     })
     .where(eq(s.works.id, ctx.work.id));
+  if (moved) {
+    // Put it at the end of the main work it moved to.
+    const rows = (await orderedIds(ctx.work.projectId)).filter((r) => r.id !== ctx.work.id);
+    const lastOfTarget = rows.map((r) => r.section).lastIndexOf(v.section);
+    const ids = rows.map((r) => r.id);
+    ids.splice(lastOfTarget + 1, 0, ctx.work.id);
+    await writeOrder(ctx.work.projectId, ids);
+  }
   await refresh(ctx.work.projectId);
   return { ok: "Saved." };
 }
 
-/** Moves a work one place up or down within its section. */
+/** Moves a sub work one place up or down within its main work. */
 export async function moveWork(formData: FormData) {
   const { work } = await loadWork(String(formData.get("id")));
   const up = formData.get("dir") === "up";
@@ -276,7 +317,7 @@ export async function moveWork(formData: FormData) {
   await refresh(work.projectId);
 }
 
-/** Moves a whole section before the one above it, or after the one below. */
+/** Moves a whole main work before the one above it, or after the one below. */
 export async function moveSection(formData: FormData) {
   const { project } = await requireWorksWriter(String(formData.get("projectId")));
   const name = String(formData.get("section"));

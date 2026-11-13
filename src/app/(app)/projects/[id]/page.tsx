@@ -144,13 +144,13 @@ export default async function ProjectPage({ params }: Props) {
                 <div className="flex items-center gap-4">
                   <ProgressRing pct={works.pct} size={96} />
                   <p className="num min-w-0 text-sm text-muted">
-                    <span className="font-semibold text-text">{works.done}</span> of {works.total} works completed
+                    <span className="font-semibold text-text">{works.done}</span> of {works.total} sub works completed
                     {works.started ? <>, <span className="font-semibold text-text">{works.started}</span> in progress</> : null}
                     {works.late(t).length ? <span className="block font-medium text-negative">{works.late(t).length} past planned finish</span> : null}
                   </p>
                 </div>
               ) : (
-                <p className="text-sm text-muted">Paste the BOQ or add milestones to track the works and show the client how far along it is.</p>
+                <p className="text-sm text-muted">Add main works and their sub works (or paste the BOQ) to track progress and show the client how far along it is.</p>
               )}
             </section>
           ) : null}

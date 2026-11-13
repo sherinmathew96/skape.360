@@ -28,7 +28,7 @@ export default async function PortalTimeline({ params }: Props) {
     <div className="grid grid-cols-1 gap-3">
       <div className="mb-3">
         <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Timeline</h1>
-        <p className="mt-1 text-muted">The works on site, in the order they are done.</p>
+        <p className="mt-1 text-muted">The main works on site and their sub works, in the order they are done.</p>
       </div>
 
       <section className="card grid grid-cols-1 gap-8 p-6 md:grid-cols-[auto_minmax(0,1fr)]" aria-labelledby="progress-title">
@@ -86,7 +86,7 @@ export default async function PortalTimeline({ params }: Props) {
           </section>
         ) : null}
         <section className="card min-w-0 p-6" aria-labelledby="sections-title">
-          <h2 id="sections-title" className="card-title mb-4">By section</h2>
+          <h2 id="sections-title" className="card-title mb-4">By main work</h2>
           <SectionBars sections={progress.sections} />
         </section>
       </div>
@@ -99,18 +99,19 @@ export default async function PortalTimeline({ params }: Props) {
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0">
                   <span className="block truncate font-medium">
-                    <span className="num mr-2 text-muted">{si + 1}</span>
+                    <span className="num mr-2">{si + 1}.</span>
                     {sec.name}
                   </span>
                   <span className="num block text-xs text-muted">
-                    {sec.done} of {sec.works.length} completed
+                    {sec.done} of {sec.works.length} sub {sec.works.length === 1 ? "work" : "works"} completed · {Math.floor(sec.pct)}%
                   </span>
                 </span>
                 <span className={WORK_STATUS[sec.status].pill}>{WORK_STATUS[sec.status].label}</span>
               </summary>
               <ol>
-                {sec.works.map((w) => (
+                {sec.works.map((w, i) => (
                   <li key={w.id} className="flex items-start gap-3 border-t border-rule px-5 py-3">
+                    <span className="num w-8 flex-none pt-px text-xs font-medium text-muted">{si + 1}.{i + 1}</span>
                     <span
                       className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border-2 ${w.status === "done" ? "border-transparent text-white" : ""}`}
                       style={w.status === "done" ? { background: WORK_STATUS.done.color } : { borderColor: WORK_STATUS[w.status].color }}

@@ -64,17 +64,11 @@ const minOf = (xs: (string | null)[]) => xs.filter((x): x is string => !!x).sort
 const maxOf = (xs: (string | null)[]) => xs.filter((x): x is string => !!x).sort().at(-1) ?? null;
 
 /**
- * Progress over the works. When every work has a BOQ value, progress is
- * weighted by value (a ₹5.5 lakh piling item counts more than a ₹5,000
- * one); otherwise each work counts the same. Only completed works count.
+ * Progress over the sub works: each completed sub work counts the same, so
+ * a main work with 4 sub works and 1 done is 25% done.
  */
 export function summariseWorks(works: WorkRow[]) {
-  const byValue = works.length > 0 && works.every((w) => (w.amountPaise ?? 0) > 0);
-  const weight = (w: WorkRow) => (byValue ? w.amountPaise! : 1);
-  const pctOf = (ws: WorkRow[]) => {
-    const total = ws.reduce((a, w) => a + weight(w), 0);
-    return total ? (ws.filter((w) => w.status === "done").reduce((a, w) => a + weight(w), 0) / total) * 100 : 0;
-  };
+  const pctOf = (ws: WorkRow[]) => (ws.length ? (ws.filter((w) => w.status === "done").length / ws.length) * 100 : 0);
 
   const order: string[] = [];
   const groups = new Map<string, WorkRow[]>();
@@ -104,8 +98,6 @@ export function summariseWorks(works: WorkRow[]) {
     };
   });
 
-  const valuePaise = works.reduce((a, w) => a + (w.amountPaise ?? 0), 0);
-  const doneValuePaise = works.filter((w) => w.status === "done").reduce((a, w) => a + (w.amountPaise ?? 0), 0);
   const late = (today: string) => works.filter((w) => w.status !== "done" && w.plannedEnd && w.plannedEnd < today);
 
   return {
@@ -114,9 +106,6 @@ export function summariseWorks(works: WorkRow[]) {
     started: works.filter((w) => w.status === "started").length,
     pending: works.filter((w) => w.status === "pending").length,
     pct: pctOf(works),
-    byValue,
-    valuePaise,
-    doneValuePaise,
     sections,
     current: works.filter((w) => w.status === "started"),
     next: works.filter((w) => w.status === "pending").slice(0, 3),

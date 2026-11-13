@@ -113,7 +113,7 @@ export default async function PortalOverview({ params }: Props) {
                 <ProgressRing pct={progress.pct} size={112} caption="complete" />
                 <div className="min-w-0 text-sm">
                   <p className="num">
-                    <span className="font-semibold">{progress.done}</span> <span className="text-muted">of {progress.total} works completed</span>
+                    <span className="font-semibold">{progress.done}</span> <span className="text-muted">of {progress.total} sub works completed</span>
                   </p>
                   {progress.current[0] ? (
                     <p className="mt-2 line-clamp-3 text-muted">
