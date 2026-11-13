@@ -12,7 +12,6 @@ import {
 import { ActionForm } from "@/components/action-form";
 import { ProjectHeader } from "@/components/project-header";
 import { Avatar } from "@/components/avatar";
-import { currentStage } from "@/components/stage-track";
 import { StatusPill } from "@/components/status-pill";
 import { TaskList } from "@/components/task-list";
 import { requireUser } from "@/lib/auth";
@@ -42,7 +41,6 @@ export default async function ProjectPage({ params }: Props) {
   const canEdit = can(user, "projects.edit");
   const onTeam = members.some((m) => m.id === user.id);
   const canAddTask = can(user, "tasks.manage") || onTeam;
-  const stage = currentStage(stages);
   const inProgress = stages.find((s) => s.status === "in_progress");
   const open = tasks.filter((task) => task.status !== "done");
   const done = tasks.filter((task) => task.status === "done");
@@ -70,43 +68,6 @@ export default async function ProjectPage({ params }: Props) {
           ) : null
         }
       />
-
-      {/* The stage ladder: this screen's answer to "where does the project stand?" */}
-      <section className="card mb-3 p-5" aria-labelledby="stages-title">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h2 id="stages-title" className="card-title">
-            {stage.name}
-            <span className="num ml-2 text-sm font-normal text-muted">
-              {stage.approved} of {stage.total} stages approved
-            </span>
-          </h2>
-          <p className="num text-muted">
-            {formatDate(project.startDate)} to {formatDate(project.dueDate)}
-          </p>
-        </div>
-        <ol className="grid gap-x-0.5 gap-y-3" style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}>
-          {stages.map((s) => (
-            <li key={s.id} className="min-w-0">
-              <span
-                className={`block h-2 rounded-[1px] ${
-                  s.status === "approved" ? "bg-mint-ink" : s.status === "in_progress" ? "bg-stage" : "bg-stage-pending"
-                }`}
-              />
-              <span
-                className={`mt-2 hidden truncate pr-2 text-xs leading-4 md:block ${
-                  s.status === "in_progress" ? "font-medium text-text" : "text-muted"
-                }`}
-              >
-                {s.name}
-              </span>
-              <span className="sr-only md:hidden">{s.name}</span>
-              <span className="sr-only">
-                {s.status === "approved" ? " (approved)" : s.status === "in_progress" ? " (in progress)" : " (not started)"}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="card" aria-labelledby="tasks-title">

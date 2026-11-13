@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Box, Check, Orbit } from "lucide-react";
+import { ArrowRight, Box, Orbit } from "lucide-react";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "@/components/drawing-status";
 import { loadPortal, portalContent } from "@/lib/portal";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PortalOverview({ params }: Props) {
   const { portal } = await loadPortal((await params).slug);
   if (!portal) notFound();
-  const { stages, models, tours, register, siteUpdates } = await portalContent(portal);
+  const { models, tours, register, siteUpdates } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const file = (id: string) => `${base}/f/${id}`;
   const on = portal.sections;
@@ -27,7 +27,6 @@ export default async function PortalOverview({ params }: Props) {
   const drawings = register.flatMap((g) => g.drawings);
   const waiting = drawings.filter((d) => d.revision?.status === "issued");
   const counts = STATUS_ORDER.map((st) => ({ st, n: drawings.filter((d) => d.status === st).length })).filter((c) => c.n > 0);
-  const currentIdx = stages.findIndex((st) => st.status !== "approved");
   const latest = siteUpdates[0];
   const visuals = [
     ...(on.models ? models.map((m) => ({ key: m.id, href: `${base}/3d#m-${m.id}`, title: m.title, kind: "3D model", image: m.coverFileId ? file(m.coverFileId) : null, icon: Box })) : []),
@@ -45,33 +44,6 @@ export default async function PortalOverview({ params }: Props) {
           {portal.location ? `, ${portal.location}` : ""}
         </p>
       </div>
-
-      {stages.length ? (
-        <section className="card p-5" aria-labelledby="stages-title">
-          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4">
-            <h2 id="stages-title" className="card-title">Where we are</h2>
-            <p className="text-muted">
-              {currentIdx === -1 ? "Every stage is done." : `Now: ${stages[currentIdx].name}`}
-            </p>
-          </div>
-          <ol className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
-            {stages.map((st, i) => {
-              const done = st.status === "approved";
-              const now = i === currentIdx;
-              return (
-                <li key={st.id} className="flex items-center gap-3 sm:block">
-                  <span className={`block h-1.5 w-10 flex-none rounded-full sm:mb-2 sm:w-auto ${done ? "bg-mint-ink" : now ? "bg-primary" : "bg-raised"}`} aria-hidden="true" />
-                  <span className={`flex items-start gap-1.5 text-sm ${done || now ? "text-text" : "text-muted"} ${now ? "font-medium" : ""}`}>
-                    {done ? <Check size={14} strokeWidth={2} aria-label="Done" className="mt-[3px] flex-none" /> : null}
-                    {st.name}
-                    {now ? <span className="sr-only">(in progress)</span> : null}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      ) : null}
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 grid-cols-1 gap-3">
