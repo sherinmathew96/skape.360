@@ -10,17 +10,16 @@ export default async function PortalInside({ children, params }: { children: Rea
   const { state, portal } = await loadPortal(slug);
   if (!portal) notFound();
   if (state !== "ok") redirect(`/${portal.slug}`);
-  const { models, tours, register, siteUpdates } = await portalContent(portal);
+  const { models, tours, siteUpdates } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const on = portal.sections;
   const viaFirm =
     portal.firmId !== null &&
     (await hasFirmAccess({ id: portal.firmId, slug: portal.firmSlug!, enabled: portal.firmEnabled!, passcodeHash: portal.firmPasscodeHash }));
-  const waiting = register.flatMap((g) => g.drawings).filter((d) => d.revision?.status === "issued").length;
 
   const tabs: PortalTab[] = [
     { href: `${base}/overview`, label: "Overview" },
-    ...(on.drawings ? [{ href: `${base}/drawings`, label: "Drawings", count: waiting }] : []),
+    ...(on.drawings ? [{ href: `${base}/drawings`, label: "Drawings" }] : []),
     ...(on.models && models.length ? [{ href: `${base}/3d`, label: "3D models" }] : []),
     ...(on.tours && tours.length ? [{ href: `${base}/360`, label: "360° tours" }] : []),
     ...(on.site && siteUpdates.length ? [{ href: `${base}/site`, label: "Site progress" }] : []),

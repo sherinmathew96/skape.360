@@ -15,22 +15,20 @@ export default async function PortalDrawings({ params, searchParams }: Props) {
   if (!portal || !portal.sections.drawings) notFound();
   const { register } = await portalContent(portal);
   const drawings = register.flatMap((g) => g.drawings);
-  const waiting = drawings.filter((d) => d.revision?.status === "issued").length;
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">Drawings</h1>
         {drawings.length ? (
           <p className="mt-1 text-muted">
-            {drawings.length} {drawings.length === 1 ? "drawing" : "drawings"}
-            {waiting ? `, ${waiting} waiting for your approval` : ""}. Open one to see its current revision.
+            {drawings.length} {drawings.length === 1 ? "drawing" : "drawings"} with their status. Open one to see its current revision.
           </p>
         ) : null}
       </div>
       {drawings.length === 0 ? (
         <p className="empty">No drawings listed yet. They appear here with their status as the studio works.</p>
       ) : (
-        <ClientRegister register={register} portal={portal.slug} fileBase={`/${portal.slug}/f/`} initialId={(await searchParams).d} />
+        <ClientRegister register={register} fileBase={`/${portal.slug}/f/`} initialId={(await searchParams).d} />
       )}
     </>
   );

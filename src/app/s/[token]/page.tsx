@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { unlockShare } from "@/app/studio-actions";
 import { ActionForm } from "@/components/action-form";
-import { ClientDecision } from "@/components/client-decision";
 import { ClientRegister } from "@/components/client-register";
 import { DrawingViewer } from "@/components/drawing-viewer";
 import { Mark } from "@/components/mark";
@@ -150,7 +149,7 @@ export default async function SharePage({ params }: Props) {
                   {count === 0 ? (
                     <p className="empty">No drawings listed yet. They will appear here with their status.</p>
                   ) : (
-                    <ClientRegister register={register} token={token} fileBase={fileBase} />
+                    <ClientRegister register={register} fileBase={fileBase} />
                   )}
                 </section>
               );
@@ -168,34 +167,14 @@ export default async function SharePage({ params }: Props) {
                     </h2>
                     <p className="text-xs text-muted">Drawing · issued {dateFmt.format(rev.issuedAt ?? rev.createdAt)}</p>
                   </div>
-                  <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                    <div className="card overflow-hidden">
-                      <DrawingViewer src={`${fileBase}${rev.fileId}`} contentType={rev.contentType} title={`${[d.number, d.title].filter(Boolean).join(" ")} ${label}`} />
-                    </div>
-                    <div className="card p-5">
-                      {rev.note ? (
-                        <>
-                          <h3 className="mb-1 font-medium">What changed</h3>
-                          <p className="mb-4 whitespace-pre-line text-muted">{rev.note}</p>
-                        </>
-                      ) : null}
-                      {rev.status === "issued" ? (
-                        <ClientDecision token={token} revisionId={rev.id} label={label} />
-                      ) : rev.decision ? (
-                        <div role="status">
-                          <p className={rev.decision.decision === "approved" ? "font-medium text-positive" : "font-medium text-negative"}>
-                            {rev.decision.decision === "approved" ? `${label} approved` : "Changes requested"}
-                          </p>
-                          <p className="text-muted">
-                            by {rev.decision.name}, {dateFmt.format(rev.decision.createdAt)}
-                          </p>
-                          {rev.decision.comment ? <p className="mt-3 whitespace-pre-line">{rev.decision.comment}</p> : null}
-                          {rev.decision.decision === "changes_requested" ? (
-                            <p className="mt-3 text-xs text-muted">The studio will share a revised drawing on this link.</p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
+                  <div className="card overflow-hidden">
+                    <DrawingViewer src={`${fileBase}${rev.fileId}`} contentType={rev.contentType} title={`${[d.number, d.title].filter(Boolean).join(" ")} ${label}`} />
+                    {rev.note ? (
+                      <div className="border-t border-rule px-5 py-4">
+                        <h3 className="mb-1 font-medium">What changed in {label}</h3>
+                        <p className="whitespace-pre-line text-muted">{rev.note}</p>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
               );

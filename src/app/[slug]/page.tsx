@@ -103,7 +103,6 @@ export default async function PortalCover({ params }: Props) {
   const typeLabel = PROJECT_TYPE_LABEL[portal.projectType];
 
   const drawings = register.flatMap((g) => g.drawings);
-  const waiting = drawings.filter((d) => d.revision?.status === "issued").length;
   const rooms = tours.reduce((n, t) => n + t.scenes.length, 0);
   const current = stages.find((st) => st.status === "in_progress") ?? stages.find((st) => st.status === "pending");
   const done = stages.filter((st) => st.status === "approved").length;
@@ -122,7 +121,7 @@ export default async function PortalCover({ params }: Props) {
   // What waits inside, in the client's words; each links straight to its tab.
   const inside = [
     on.drawings && drawings.length
-      ? { href: `${base}/drawings`, label: `${drawings.length} ${drawings.length === 1 ? "drawing" : "drawings"}`, note: waiting ? `${waiting} for your approval` : null }
+      ? { href: `${base}/drawings`, label: `${drawings.length} ${drawings.length === 1 ? "drawing" : "drawings"}`, note: null as string | null }
       : null,
     on.models && models.length ? { href: `${base}/3d`, label: `${models.length} 3D ${models.length === 1 ? "model" : "models"}`, note: null } : null,
     on.tours && rooms ? { href: `${base}/360`, label: `${rooms} ${rooms === 1 ? "room" : "rooms"} in 360°`, note: null } : null,

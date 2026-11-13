@@ -9,7 +9,6 @@ import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 type Props = { params: Promise<{ slug: string }> };
 
 const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-const shortFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { portal } = await loadPortal((await params).slug);
@@ -25,7 +24,6 @@ export default async function PortalOverview({ params }: Props) {
   const on = portal.sections;
 
   const drawings = register.flatMap((g) => g.drawings);
-  const waiting = drawings.filter((d) => d.revision?.status === "issued");
   const counts = STATUS_ORDER.map((st) => ({ st, n: drawings.filter((d) => d.status === st).length })).filter((c) => c.n > 0);
   const latest = siteUpdates[0];
   const visuals = [
@@ -47,35 +45,6 @@ export default async function PortalOverview({ params }: Props) {
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 grid-cols-1 gap-3">
-          {on.drawings ? (
-            <section className="card" aria-labelledby="waiting-title">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 px-5 pb-2 pt-4">
-                <h2 id="waiting-title" className="card-title">Waiting for your approval</h2>
-                <p className="num text-muted">{waiting.length ? `${waiting.length} ${waiting.length === 1 ? "drawing" : "drawings"}` : ""}</p>
-              </div>
-              {waiting.length === 0 ? (
-                <p className="px-5 pb-5 text-muted">Nothing waits on you right now. New drawings appear here when the studio issues them.</p>
-              ) : (
-                <ul>
-                  {waiting.map((d) => (
-                    <li key={d.id} className="border-t border-rule">
-                      <Link href={`${base}/drawings?d=${d.id}`} className="group flex min-h-14 items-center gap-3 px-5 py-2 transition-colors hover:bg-ground">
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{d.title}</span>
-                          <span className="num block truncate text-xs leading-4 text-muted">
-                            {[d.number, d.revision ? `R${d.revision.rev}` : null, d.revision?.issuedAt ? `issued ${shortFmt.format(d.revision.issuedAt)}` : null].filter(Boolean).join(" · ")}
-                          </span>
-                        </span>
-                        <span className="flex-none text-sm font-medium">Review</span>
-                        <ArrowRight size={16} strokeWidth={1.5} aria-hidden="true" className="flex-none transition-transform group-hover:translate-x-0.5" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ) : null}
-
           {on.drawings && drawings.length ? (
             <section className="card p-5" aria-labelledby="drawings-title">
               <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4">
