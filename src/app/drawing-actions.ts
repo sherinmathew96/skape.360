@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, desc, eq, isNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, max, min, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { DECISIONS, DISCIPLINES, DRAWING_STATUSES } from "@/db/schema";
@@ -171,8 +171,9 @@ export async function createDrawing(input: {
   const rev = input.rev === null ? 0 : z.number().int().min(0).max(99).parse(input.rev);
   const file = input.fileId ? await claimDrawingFile(user, project.id, input.fileId) : null;
   const db = await getDb();
-  const [{ last }] = await db
-    .select({ last: max(s.drawings.position) })
+  // The newest drawing goes on top of its group.
+  const [{ first }] = await db
+    .select({ first: min(s.drawings.position) })
     .from(s.drawings)
     .where(and(eq(s.drawings.projectId, project.id), groupId ? eq(s.drawings.groupId, groupId) : isNull(s.drawings.groupId)));
   const id = await db.transaction(async (tx) => {
@@ -186,7 +187,7 @@ export async function createDrawing(input: {
         discipline: details.discipline,
         status,
         assigneeId,
-        position: (last ?? -1) + 1,
+        position: (first ?? 1) - 1,
         createdBy: user.id,
       })
       .returning({ id: s.drawings.id });
@@ -256,11 +257,11 @@ export async function updateDrawing(_: FormState, formData: FormData): Promise<F
   if (v.assigneeId && !(await isProjectMember(v.assigneeId, project.id))) return { error: "Assign it to someone on the project's team." };
   let position = drawing.position;
   if (groupId !== drawing.groupId) {
-    const [{ last }] = await db
-      .select({ last: max(s.drawings.position) })
+    const [{ first }] = await db
+      .select({ first: min(s.drawings.position) })
       .from(s.drawings)
       .where(and(eq(s.drawings.projectId, project.id), groupId ? eq(s.drawings.groupId, groupId) : isNull(s.drawings.groupId)));
-    position = (last ?? -1) + 1;
+    position = (first ?? 1) - 1;
   }
   await db
     .update(s.drawings)
