@@ -133,16 +133,25 @@ export function ClientRegister({
       {shownGroups.length === 0 ? (
         <p className="empty">No drawings match. Clear the search or pick another group or status.</p>
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-6">
           {shownGroups.map((g) => (
-            <section key={g.key} aria-labelledby={`group-${g.key}`}>
-              <h2 id={`group-${g.key}`} className="mb-4 text-lg font-semibold tracking-[-0.01em]">
+            <section key={g.key} className="card overflow-hidden" aria-labelledby={`group-${g.key}`}>
+              <h2 id={`group-${g.key}`} className="px-5 pb-3 pt-5 text-lg font-semibold tracking-[-0.01em] md:px-6">
                 {g.name} <span className="num ml-1 text-sm font-normal text-muted">{g.drawings.length}</span>
               </h2>
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {/* Column names on wide screens; phones read each row on its own. */}
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_96px_56px_120px_190px_36px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
+                <span>Drawing</span>
+                <span>Sheet</span>
+                <span>Rev</span>
+                <span>Issued</span>
+                <span>Status</span>
+                <span />
+              </div>
+              <ul>
                 {g.drawings.map((d) => (
-                  <li key={d.id} className="flex">
-                    <DrawingCard drawing={d} onOpen={() => setOpenId(d.id)} />
+                  <li key={d.id} className="border-t border-rule">
+                    <DrawingRow drawing={d} onOpen={() => setOpenId(d.id)} />
                   </li>
                 ))}
               </ul>
@@ -198,50 +207,40 @@ export function ClientRegister({
   );
 }
 
-/** One drawing: a sheet-like face with its status, then its name, revision and date. */
-function DrawingCard({ drawing: d, onOpen }: { drawing: Drawing; onOpen: () => void }) {
-  const style = STATUS_STYLE[d.status];
+/** One drawing as a row: name, sheet, revision, issue date and status. Opens the current revision. */
+function DrawingRow({ drawing: d, onOpen }: { drawing: Drawing; onOpen: () => void }) {
+  const issued = d.revision ? dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt) : null;
   const body = (
     <>
-      {/* A drawing sheet in miniature: title block bottom right, in the status colour. A small square on phones. */}
-      <span className="relative flex w-20 flex-none items-center justify-center overflow-hidden border-r border-rule bg-[#f6f7fb] sm:aspect-[16/9] sm:w-auto sm:border-b sm:border-r-0">
-        <span className="absolute inset-2 rounded-md border border-dashed border-control sm:inset-3" aria-hidden="true" />
-        <span className="absolute bottom-2 right-2 h-3 w-8 rounded-sm sm:bottom-3 sm:right-3 sm:h-6 sm:w-20" style={{ background: style.bg }} aria-hidden="true" />
-        <FileText strokeWidth={1.2} className="relative h-6 w-6 text-[#9197b3] sm:h-[34px] sm:w-[34px]" aria-hidden="true" />
-        {d.number ? <span className="absolute left-5 top-5 hidden font-mono text-xs text-muted sm:block">{d.number}</span> : null}
-        <span className="absolute right-4 top-4 hidden sm:block">
-          <StatusChip status={d.status} />
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#f6f7fb] text-[#9197b3]" aria-hidden="true">
+          <FileText size={18} strokeWidth={1.5} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{d.title}</span>
+          {/* On phones the details sit under the name. */}
+          <span className="num block truncate text-xs text-muted md:hidden">
+            {[d.number, d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" · ")}
+          </span>
         </span>
       </span>
-      <span className="flex min-w-0 flex-1 items-center gap-3 p-4">
-        <span className="min-w-0 flex-1">
-          <span className="mb-1.5 block sm:hidden">
-            <StatusChip status={d.status} />
-          </span>
-          <span className="block truncate font-semibold">{d.title}</span>
-          <span className="num mt-0.5 block truncate text-xs text-muted">
-            {d.number ? <span className="sm:hidden">{d.number} · </span> : null}
-            {d.revision ? `R${d.revision.rev} · issued ${dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt)}` : `Not issued yet · updated ${dateFmt.format(d.statusChangedAt)}`}
-          </span>
-        </span>
-        {d.revision ? (
-          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-active text-primary transition-colors group-hover:bg-primary group-hover:text-white" aria-hidden="true">
-            <ArrowRight size={16} strokeWidth={1.8} />
-          </span>
-        ) : null}
+      <span className="num hidden truncate font-mono text-xs text-muted md:block">{d.number ?? "–"}</span>
+      <span className="num hidden font-mono text-xs md:block">{d.revision ? `R${d.revision.rev}` : "–"}</span>
+      <span className="num hidden text-sm text-muted md:block">{issued ?? "Not issued"}</span>
+      <span className="min-w-0 justify-self-end md:justify-self-start">
+        <StatusChip status={d.status} />
+      </span>
+      <span className="hidden justify-self-end md:block" aria-hidden="true">
+        {d.revision ? <ArrowRight size={16} strokeWidth={1.8} className="text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" /> : null}
       </span>
     </>
   );
+  const grid = "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-5 py-3 text-left md:grid-cols-[minmax(0,1fr)_96px_56px_120px_190px_36px] md:px-6";
   return d.revision ? (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${style.label}`}
-      className="card group flex w-full flex-row overflow-hidden text-left transition-[transform,box-shadow] sm:flex-col duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(89,50,234,0.12)] motion-reduce:transition-none"
-    >
+    <button type="button" onClick={onOpen} aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${STATUS_STYLE[d.status].label}`} className={`group ${grid} transition-colors hover:bg-[#fbfbff]`}>
       {body}
     </button>
   ) : (
-    <div className="card flex w-full flex-row overflow-hidden opacity-75 sm:flex-col">{body}</div>
+    <div className={`${grid} opacity-70`}>{body}</div>
   );
 }

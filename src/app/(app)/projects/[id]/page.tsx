@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Check, X } from "lucide-react";
+import Link from "next/link";
+import { Check, Pencil, X } from "lucide-react";
 import {
   addMember,
   addMilestone,
@@ -57,14 +58,22 @@ export default async function ProjectPage({ params }: Props) {
           .join(" · ")}
         badge={project.status !== "active" ? <StatusPill status={project.status} /> : null}
         actions={
-          canEdit && inProgress ? (
-            <form action={approveStage}>
-              <input type="hidden" name="projectId" value={project.id} />
-              <button type="submit" className="btn btn-primary">
-                <Check size={16} strokeWidth={1.5} aria-hidden="true" />
-                Approve {inProgress.name.toLowerCase()}
-              </button>
-            </form>
+          canEdit ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={`/projects/${project.id}/edit`} className="btn btn-secondary">
+                <Pencil size={16} strokeWidth={1.5} aria-hidden="true" />
+                Edit project
+              </Link>
+              {inProgress ? (
+                <form action={approveStage}>
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <button type="submit" className="btn btn-primary">
+                    <Check size={16} strokeWidth={1.5} aria-hidden="true" />
+                    Approve {inProgress.name.toLowerCase()}
+                  </button>
+                </form>
+              ) : null}
+            </div>
           ) : null
         }
       />

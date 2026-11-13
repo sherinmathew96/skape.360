@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, asc, count, eq, gt, like, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
-import { PROJECT_TYPES, TASK_STATUSES } from "@/db/schema";
+import { PROJECT_STATUSES, PROJECT_TYPES, TASK_STATUSES } from "@/db/schema";
 import {
   createSession,
   destroySession,
@@ -164,6 +164,63 @@ export async function createProject(_: FormState, formData: FormData): Promise<F
   if (input.firmId) await ensurePortal(id, user.id);
   revalidatePath("/", "layout");
   redirect(`/projects/${id}`);
+}
+
+/**
+ * Edits a project after it was created: its name, place, dates, lead,
+ * status and firm, and its client's name and phone. The client's details
+ * are shared by every project of that client.
+ */
+export async function updateProject(_: FormState, formData: FormData): Promise<FormState> {
+  const user = await requirePermission("projects.edit");
+  const projectId = uuid.parse(formData.get("projectId"));
+  const parsed = z
+    .object({
+      name: z.string().trim().min(2, "Give the project a name.").max(120),
+      location: z.string().trim().max(160),
+      startDate: optionalDate,
+      dueDate: optionalDate,
+      leadId: uuid,
+      status: z.enum(PROJECT_STATUSES),
+      firmId: z.union([uuid, z.literal("")]),
+      clientName: z.string().trim().min(2, "Enter the client's name.").max(120),
+      clientPhone: z.string().trim().max(40),
+    })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstError(parsed.error) };
+  const v = parsed.data;
+  if (v.startDate && v.dueDate && v.dueDate < v.startDate) return { error: "The completion date is before the start date." };
+
+  const found = await getProject(user, projectId);
+  if (!found) return { error: "That project was not found." };
+  const db = await getDb();
+  const [project] = await db.select({ clientId: s.projects.clientId }).from(s.projects).where(eq(s.projects.id, projectId));
+  if (v.firmId) {
+    const [firm] = await db.select({ id: s.firms.id }).from(s.firms).where(eq(s.firms.id, v.firmId));
+    if (!firm) return { error: "That firm was not found." };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(s.projects)
+      .set({
+        name: v.name,
+        location: v.location || null,
+        startDate: v.startDate,
+        dueDate: v.dueDate,
+        leadId: v.leadId,
+        status: v.status,
+        firmId: v.firmId || null,
+      })
+      .where(eq(s.projects.id, projectId));
+    await tx.update(s.clients).set({ name: v.clientName, phone: v.clientPhone || null }).where(eq(s.clients.id, project.clientId));
+    // The lead is always on the project's team.
+    await tx.insert(s.projectMembers).values({ projectId, userId: v.leadId }).onConflictDoNothing();
+  });
+  if (v.firmId) await ensurePortal(projectId, user.id);
+  await audit(user, "update", "project", projectId);
+  revalidatePath("/", "layout");
+  redirect(`/projects/${projectId}`);
 }
 
 /** Approves the stage in progress and opens the next one. */
