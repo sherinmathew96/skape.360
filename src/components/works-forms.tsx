@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useMemo, useRef, useState, useTransition } from "react";
 import { addHeading, addSubWork, importWorks, renameSection, updateWork } from "@/app/works-actions";
-import { parseBoq, parseBoqRows } from "@/lib/boq";
+import { combineSheets, defaultSheets, parseBoq, parseBoqRows } from "@/lib/boq";
 import { readBoqFile, type BoqSheet } from "@/lib/boq-files";
 
 type State = { error?: string; ok?: string } | undefined;
@@ -33,18 +33,19 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
   const fileRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [sheets, setSheets] = useState<BoqSheet[] | null>(null);
-  const [sheet, setSheet] = useState(0);
+  const [picked, setPicked] = useState<number[]>([]);
   const [fileName, setFileName] = useState("");
   const [reading, setReading] = useState(false);
   const [replace, setReplace] = useState(false);
   const [state, setState] = useState<State>();
   const [pending, start] = useTransition();
-  const rows = useMemo(() => (sheets ? parseBoqRows(sheets[sheet]?.rows ?? []) : parseBoq(text)), [sheets, sheet, text]);
+  const perSheet = useMemo(() => (sheets ?? []).map((s) => parseBoqRows(s.rows, { startSection: s.name })), [sheets]);
+  const rows = useMemo(() => (sheets ? combineSheets(sheets, perSheet, picked) : parseBoq(text)), [sheets, perSheet, picked, text]);
   const sections = useMemo(() => [...new Set(rows.map((r) => r.section))], [rows]);
 
   const clearFile = () => {
     setSheets(null);
-    setSheet(0);
+    setPicked([]);
     setFileName("");
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -56,10 +57,8 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
     setFileName(file.name);
     try {
       const read = await readBoqFile(file);
-      // Start on the sheet with the most works.
-      const counts = read.map((s) => parseBoqRows(s.rows).length);
       setSheets(read);
-      setSheet(Math.max(0, counts.indexOf(Math.max(...counts))));
+      setPicked(defaultSheets(read));
       setText("");
     } catch (err) {
       clearFile();
@@ -104,14 +103,29 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
       </div>
 
       {sheets && sheets.length > 1 ? (
-        <div>
-          <label htmlFor="boq-sheet" className="field-label">Sheet</label>
-          <select id="boq-sheet" value={sheet} onChange={(e) => setSheet(Number(e.target.value))} className="field">
-            {sheets.map((s, i) => (
-              <option key={`${s.name}-${i}`} value={i}>{s.name}</option>
-            ))}
-          </select>
-        </div>
+        <fieldset>
+          <legend className="field-label">Sheets to add, in this order</legend>
+          <ul className="space-y-1">
+            {sheets.map((s, i) => {
+              const n = perSheet[i]?.length ?? 0;
+              return (
+                <li key={`${s.name}-${i}`}>
+                  <label className={`flex min-h-10 items-center gap-3 rounded-md px-2 ${n ? "cursor-pointer hover:bg-ground" : "opacity-50"}`}>
+                    <input
+                      type="checkbox"
+                      disabled={!n}
+                      checked={picked.includes(i)}
+                      onChange={(e) => setPicked((p) => (e.target.checked ? [...p, i].sort((a, b) => a - b) : p.filter((x) => x !== i)))}
+                      className="h-4 w-4 flex-none accent-primary"
+                    />
+                    <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                    <span className="num flex-none text-xs text-muted">{n ? `${n} ${n === 1 ? "work" : "works"}` : "no works"}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </fieldset>
       ) : null}
 
       {!sheets ? (

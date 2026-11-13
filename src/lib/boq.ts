@@ -122,3 +122,33 @@ export function parseBoqRows(table: string[][], { startSection = "Works", lists 
   }
   return rows.slice(0, 500);
 }
+
+/**
+ * Which sheets to add by default: every sheet with numbered items (1.1,
+ * 2.3…), so a BOQ split into Foundation and Superstructure sheets comes in
+ * whole while a summary sheet (1, 2, 3 with totals) is left out.
+ */
+export function defaultSheets(sheets: { name: string; rows: string[][] }[]): number[] {
+  const parsed = sheets.map((s) => parseBoqRows(s.rows, { startSection: s.name }));
+  const dotted = parsed.map((rows, i) => (rows.some((r) => r.code && CODE.test(r.code) && r.code.includes(".")) ? i : -1)).filter((i) => i >= 0);
+  if (dotted.length) return dotted;
+  const counts = parsed.map((r) => r.length);
+  const best = counts.indexOf(Math.max(...counts));
+  return best >= 0 && counts[best] > 0 ? [best] : [];
+}
+
+/** The works of the chosen sheets, in sheet order; a head repeated on a later sheet gets the sheet's name. */
+export function combineSheets(sheets: { name: string; rows: string[][] }[], parsed: BoqRow[][], picked: number[]): BoqRow[] {
+  const seen = new Set<string>();
+  const out: BoqRow[] = [];
+  for (const i of [...picked].sort((a, b) => a - b)) {
+    const rows = parsed[i] ?? [];
+    const names = new Map<string, string>();
+    for (const sec of new Set(rows.map((r) => r.section))) {
+      names.set(sec, seen.has(sec) ? `${sec} (${sheets[i].name})` : sec);
+    }
+    for (const r of rows) out.push({ ...r, section: names.get(r.section)! });
+    for (const n of names.values()) seen.add(n);
+  }
+  return out.slice(0, 500);
+}
