@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useRef, useState, useTransition } from "react";
 import { addHeading, addSubWork, importWorks, renameSection, updateWork } from "@/app/works-actions";
-import { parseBoq } from "@/lib/boq";
+import { parseBoq, parseBoqRows } from "@/lib/boq";
+import { readBoqFile, type BoqSheet } from "@/lib/boq-files";
 
 type State = { error?: string; ok?: string } | undefined;
 
@@ -26,15 +27,47 @@ function useResetOnOk(state: State) {
   return key;
 }
 
-/** Paste a BOQ from Excel, check what was read, then add it. */
+/** Upload a BOQ (Excel, CSV or PDF) or paste it, check what was read, then add it. */
 export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: string; hasWorks: boolean; canReplace: boolean }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
+  const [sheets, setSheets] = useState<BoqSheet[] | null>(null);
+  const [sheet, setSheet] = useState(0);
+  const [fileName, setFileName] = useState("");
+  const [reading, setReading] = useState(false);
   const [replace, setReplace] = useState(false);
   const [state, setState] = useState<State>();
   const [pending, start] = useTransition();
-  const rows = useMemo(() => parseBoq(text), [text]);
+  const rows = useMemo(() => (sheets ? parseBoqRows(sheets[sheet]?.rows ?? []) : parseBoq(text)), [sheets, sheet, text]);
   const sections = useMemo(() => [...new Set(rows.map((r) => r.section))], [rows]);
+
+  const clearFile = () => {
+    setSheets(null);
+    setSheet(0);
+    setFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const onFile = async (file: File | undefined) => {
+    setState(undefined);
+    if (!file) return clearFile();
+    setReading(true);
+    setFileName(file.name);
+    try {
+      const read = await readBoqFile(file);
+      // Start on the sheet with the most works.
+      const counts = read.map((s) => parseBoqRows(s.rows).length);
+      setSheets(read);
+      setSheet(Math.max(0, counts.indexOf(Math.max(...counts))));
+      setText("");
+    } catch (err) {
+      clearFile();
+      setState({ error: err instanceof Error ? err.message : "Couldn't read that file." });
+    } finally {
+      setReading(false);
+    }
+  };
 
   return (
     <form
@@ -43,50 +76,102 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
         e.preventDefault();
         if (replace && !window.confirm("Replace the whole timeline? Every work on it now, with its dates, will be removed.")) return;
         start(async () => {
-          const res = await importWorks({ projectId, replace, rows });
+          const res = await importWorks({ projectId, replace, rows: rows.map((r) => ({ ...r, unit: null, qty: null, rate: null, amount: null })) });
           setState(res);
           if (res.ok) {
             setText("");
+            clearFile();
             setReplace(false);
             router.refresh();
           }
         });
       }}
     >
-      <label htmlFor="boq-paste" className="field-label">Paste the BOQ</label>
-      <textarea
-        id="boq-paste"
-        rows={5}
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setState(undefined);
-        }}
-        placeholder="Select the rows in Excel (Sl. to Amount) and paste here."
-        spellCheck={false}
-        className="field h-auto py-2 font-mono text-xs"
-        aria-describedby="boq-help"
-      />
-      <p id="boq-help" className="text-xs text-muted">
-        Heads such as “2 EXCAVATION” become main works and the items under them sub works. Sub-totals and GST lines are skipped.
-      </p>
+      <div>
+        <label htmlFor="boq-file" className="field-label">Upload the BOQ</label>
+        <input
+          ref={fileRef}
+          id="boq-file"
+          type="file"
+          accept=".xlsx,.xlsm,.csv,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          onChange={(e) => onFile(e.target.files?.[0])}
+          aria-describedby="boq-help"
+          className="block w-full text-sm file:mr-3 file:h-10 file:cursor-pointer file:rounded-md file:border-0 file:bg-raised file:px-4 file:font-medium"
+        />
+        <p id="boq-help" className="mt-2 text-xs text-muted">
+          Excel (.xlsx), CSV or PDF. Heads such as “2 EXCAVATION” become main works and the items under them sub works. Quantities, rates, sub-totals and GST are left out. The file stays on this device.
+        </p>
+      </div>
+
+      {sheets && sheets.length > 1 ? (
+        <div>
+          <label htmlFor="boq-sheet" className="field-label">Sheet</label>
+          <select id="boq-sheet" value={sheet} onChange={(e) => setSheet(Number(e.target.value))} className="field">
+            {sheets.map((s, i) => (
+              <option key={`${s.name}-${i}`} value={i}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      {!sheets ? (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-primary hover:underline">Or paste rows from Excel</summary>
+          <label htmlFor="boq-paste" className="sr-only">Paste the BOQ</label>
+          <textarea
+            id="boq-paste"
+            rows={5}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setState(undefined);
+            }}
+            placeholder="Select the rows in Excel (Sl. to Amount) and paste here."
+            spellCheck={false}
+            className="field mt-2 h-auto py-2 font-mono text-xs"
+          />
+        </details>
+      ) : null}
+
+      {reading ? <p className="text-sm text-muted" aria-live="polite">Reading {fileName}…</p> : null}
+
       {rows.length ? (
         <div className="rounded-md bg-ground p-3 text-sm">
-          <p className="font-medium">
-            {rows.length} sub {rows.length === 1 ? "work" : "works"} under {sections.length} main {sections.length === 1 ? "work" : "works"}
-          </p>
-          <ul className="mt-1 space-y-0.5 text-xs text-muted">
-            {sections.slice(0, 8).map((sec) => (
-              <li key={sec} className="truncate">
-                {sec}: {rows.filter((r) => r.section === sec).length}
-              </li>
-            ))}
-            {sections.length > 8 ? <li>and {sections.length - 8} more</li> : null}
-          </ul>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <p className="font-medium">
+              {sections.length} main {sections.length === 1 ? "work" : "works"}, {rows.length} sub {rows.length === 1 ? "work" : "works"}
+            </p>
+            {sheets ? (
+              <button type="button" onClick={clearFile} className="text-xs font-medium text-primary hover:underline">Clear file</button>
+            ) : null}
+          </div>
+          <ol className="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1 text-xs">
+            {sections.map((sec, si) => {
+              const subs = rows.filter((r) => r.section === sec);
+              return (
+                <li key={sec}>
+                  <p className="font-semibold">
+                    {si + 1}. {sec} <span className="font-normal text-muted">· {subs.length}</span>
+                  </p>
+                  <ol className="mt-0.5 space-y-0.5 text-muted">
+                    {subs.slice(0, 3).map((r, i) => (
+                      <li key={i} className="truncate">
+                        {si + 1}.{i + 1} {r.title}
+                      </li>
+                    ))}
+                    {subs.length > 3 ? <li>and {subs.length - 3} more</li> : null}
+                  </ol>
+                </li>
+              );
+            })}
+          </ol>
         </div>
+      ) : sheets && !reading ? (
+        <p className="text-sm text-negative">No works found in {fileName}. Check that it has numbered items (1.1, 1.2…) under numbered heads.</p>
       ) : text.trim() ? (
         <p className="text-sm text-negative">No works found. Copy the rows straight from Excel so the columns stay apart.</p>
       ) : null}
+
       {hasWorks && canReplace ? (
         <label className="flex min-h-10 items-center gap-2 text-sm">
           <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} className="h-4 w-4 accent-primary" />
@@ -94,7 +179,7 @@ export function BoqImport({ projectId, hasWorks, canReplace }: { projectId: stri
         </label>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <button type="submit" disabled={pending || !rows.length} className="btn btn-primary">
+        <button type="submit" disabled={pending || reading || !rows.length} className="btn btn-primary">
           {pending ? "Adding…" : rows.length ? `Add ${rows.length} sub ${rows.length === 1 ? "work" : "works"}` : "Add works"}
         </button>
         <Message state={state} />

@@ -137,7 +137,7 @@ export default async function ProjectTimelinePage({ params }: { params: Promise<
             </section>
             <section className="card p-6" aria-labelledby="start-title">
               <h2 id="start-title" className="card-title">Or start from the BOQ</h2>
-              <p className="mb-4 mt-1 text-sm text-muted">Copy the BOQ rows from Excel and paste them here. Each head becomes a main work and its items sub works.</p>
+              <p className="mb-4 mt-1 text-sm text-muted">Upload the BOQ as Excel or PDF. Each head becomes a main work and its items sub works; quantities and rates are left out.</p>
               <BoqImport projectId={project.id} hasWorks={false} canReplace={false} />
             </section>
           </div>

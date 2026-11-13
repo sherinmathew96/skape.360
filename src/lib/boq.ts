@@ -34,7 +34,7 @@ const tidy = (text: string) => {
 };
 
 /** Splits tab-separated text into rows of cells, keeping quoted cells that span lines (as Excel copies them). */
-export function splitTsv(text: string): string[][] {
+export function splitTsv(text: string, delimiter = "\t"): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -48,7 +48,7 @@ export function splitTsv(text: string): string[][] {
       } else if (ch === '"') quoted = false;
       else cell += ch === "\n" || ch === "\r" ? " " : ch;
     } else if (ch === '"' && cell === "") quoted = true;
-    else if (ch === "\t") {
+    else if (ch === delimiter) {
       row.push(cell);
       cell = "";
     } else if (ch === "\n") {
@@ -64,10 +64,19 @@ export function splitTsv(text: string): string[][] {
 }
 
 export function parseBoq(text: string, startSection = "Works"): BoqRow[] {
+  return parseBoqRows(splitTsv(text), { startSection, lists: true });
+}
+
+/**
+ * Reads rows of cells (from a paste, an Excel sheet or a PDF table). With
+ * `lists`, a line of words alone is taken as a work; files leave it off so
+ * titles, notes and page footers are not mistaken for works.
+ */
+export function parseBoqRows(table: string[][], { startSection = "Works", lists = false }: { startSection?: string; lists?: boolean } = {}): BoqRow[] {
   const rows: BoqRow[] = [];
   let section = startSection;
 
-  for (const raw of splitTsv(text)) {
+  for (const raw of table) {
     const cells = raw.map((c) => c.replace(/\s+/g, " ").trim());
     while (cells.length && !cells[cells.length - 1]) cells.pop();
     const filled = cells.filter(Boolean);
@@ -107,7 +116,7 @@ export function parseBoq(text: string, startSection = "Works"): BoqRow[] {
     }
 
     // Anything else with words and no figures: a milestone, one per line.
-    if (filled.length === 1 && /[a-z]/i.test(first) && first.length >= 3) {
+    if (lists && filled.length === 1 && /[a-z]/i.test(first) && first.length >= 3) {
       rows.push({ section, code: null, title: first.replace(/\s+/g, " "), unit: null, qty: null, rate: null, amount: null });
     }
   }
