@@ -3,7 +3,7 @@ import { LogOut, Search } from "lucide-react";
 import { logout } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
 import { Mark } from "@/components/mark";
-import { BottomNav, SidebarNav } from "@/components/nav";
+import { BottomNav, SettingsLink, SidebarNav } from "@/components/nav";
 import { requireUser } from "@/lib/auth";
 import { listOpenTasks } from "@/lib/data";
 import { today } from "@/lib/dates";
@@ -53,7 +53,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         <SidebarNav myOverdue={myOverdue} office={office} waiting={waiting} />
 
-        <div className="mt-auto flex items-center gap-3 rounded-xl bg-ground p-3">
+        <div className="mt-auto pt-6">
+          {office.includes("settings") ? <SettingsLink /> : null}
+        </div>
+        <div className="flex items-center gap-3 rounded-xl bg-ground p-3">
           <Avatar name={user.name} size={40} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium leading-5">{user.name}</span>
