@@ -53,3 +53,13 @@ export async function compressImage(file: File, kind: FileKind): Promise<File> {
   const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
   return new File([blob], name, { type: "image/jpeg", lastModified: file.lastModified });
 }
+
+/** Shrinks an upload before it is sent: images by kind, PDFs losslessly. */
+export async function compressUpload(file: File, kind: FileKind): Promise<File> {
+  if (kind === "drawing" || kind === "receipt") {
+    const { compressPdf } = await import("./shrink-pdf");
+    const pdf = await compressPdf(file);
+    if (pdf !== file) return pdf;
+  }
+  return compressImage(file, kind);
+}

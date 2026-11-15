@@ -32,7 +32,17 @@ export function DrawingViewer({ src, contentType, title }: { src: string; conten
       try {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-        const doc = await pdfjs.getDocument({ url: src, withCredentials: false }).promise;
+        // Decoders for JPEG 2000 / JBIG2 images, colour profiles and fonts the PDF doesn't embed.
+        const assets = "/vendor/pdfjs/";
+        const doc = await pdfjs.getDocument({
+          url: src,
+          withCredentials: false,
+          wasmUrl: assets + "wasm/",
+          iccUrl: assets + "iccs/",
+          cMapUrl: assets + "cmaps/",
+          cMapPacked: true,
+          standardFontDataUrl: assets + "standard_fonts/",
+        }).promise;
         if (!alive) return void doc.destroy();
         docRef.current = doc;
         setPageCount(doc.numPages);

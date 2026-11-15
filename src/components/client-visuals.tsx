@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { Box, ChevronLeft, ChevronRight, Image as ImageIcon, MessageSquare, Orbit, X } from "lucide-react";
+import { Box, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, MessageSquare, Orbit, X } from "lucide-react";
 import { ClientThread } from "./comment-thread";
 import type { DrawingVisuals } from "@/lib/visuals";
 
@@ -22,23 +22,42 @@ function Loading() {
 
 export type VisualKind = "model" | "tour" | "renders";
 
-/** The 3D, 360° and Renders buttons on a drawing's row; only what the drawing has. */
-export function VisualButtons({ visuals, title, onOpen }: { visuals: DrawingVisuals; title: string; onOpen: (kind: VisualKind) => void }) {
+/** The Drawing, 3D, 360° and Renders buttons on a drawing's row; only what the drawing has. */
+export function VisualButtons({
+  visuals,
+  title,
+  onOpen,
+  onDrawing,
+}: {
+  visuals: DrawingVisuals;
+  title: string;
+  onOpen: (kind: VisualKind) => void;
+  /** Opens the drawing itself; without it there is no Drawing button. */
+  onDrawing?: () => void;
+}) {
   const parts = [
     { kind: "model" as const, n: visuals.models.length, Icon: Box, label: "3D" },
     { kind: "tour" as const, n: visuals.tours.length, Icon: Orbit, label: "360°" },
     { kind: "renders" as const, n: visuals.renders.length, Icon: ImageIcon, label: "Renders" },
   ].filter((p) => p.n > 0);
-  if (!parts.length) return null;
+  if (!parts.length && !onDrawing) return null;
+  const chip =
+    "flex h-8 items-center gap-1.5 rounded-full border border-[#dcd6fb] bg-[#f4f1ff] px-2.5 text-xs font-medium text-primary transition-colors hover:bg-[#ebe5ff]";
   return (
     <span className="flex flex-wrap items-center gap-1.5">
+      {onDrawing ? (
+        <button type="button" onClick={onDrawing} aria-label={`Drawing: ${title}`} className={chip}>
+          <FileText size={14} strokeWidth={1.8} aria-hidden="true" />
+          Drawing
+        </button>
+      ) : null}
       {parts.map(({ kind, n, Icon, label }) => (
         <button
           key={kind}
           type="button"
           onClick={() => onOpen(kind)}
           aria-label={`${label} for ${title}${n > 1 ? `, ${n}` : ""}`}
-          className="flex h-8 items-center gap-1.5 rounded-full border border-[#dcd6fb] bg-[#f4f1ff] px-2.5 text-xs font-medium text-primary transition-colors hover:bg-[#ebe5ff]"
+          className={chip}
         >
           <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
           {label}
@@ -165,6 +184,7 @@ export function VisualModal({
               title={visuals.models[at].title}
               poster={visuals.models[at].coverFileId ? file(visuals.models[at].coverFileId!) : null}
               view={visuals.models[at].view}
+              touchAction="none"
               className="h-full w-full"
             />
           ) : null}

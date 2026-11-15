@@ -9,6 +9,7 @@ import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
 import { VisualButtons, VisualModal, type VisualKind } from "./client-visuals";
 import { DrawingViewer } from "./drawing-viewer";
 import { GroupCard } from "./group-card";
+import { useBackToClose } from "./use-back-to-close";
 import { ShareButton } from "./share-button";
 
 type Register = Awaited<ReturnType<typeof clientRegister>>;
@@ -76,6 +77,9 @@ export function ClientRegister({
   const open = all.find((d) => d.id === openId) ?? null;
   const at = open ? viewable.findIndex((d) => d.id === open.id) : -1;
   const counts = STATUS_ORDER.map((st) => ({ st, n: all.filter((d) => d.status === st).length })).filter((c) => c.n > 0);
+
+  useBackToClose(Boolean(open), () => setOpenId(null));
+  useBackToClose(Boolean(visual), () => setVisual(null));
 
   useEffect(() => {
     if (!open) return;
@@ -152,7 +156,7 @@ export function ClientRegister({
                 <span>Rev</span>
                 <span>Issued</span>
                 <span>Status</span>
-                <span>3D · 360° · Renders</span>
+                <span>View</span>
                 <span />
               </div>
               <ul>
@@ -288,7 +292,7 @@ function DrawingRow({ drawing: d, slug, onOpen, onVisual }: { drawing: Drawing; 
         <StatusChip status={d.status} />
       </span>
       <span className="col-span-2 flex min-w-0 items-center justify-between gap-2 empty:hidden md:col-span-1">
-        {showVisuals ? <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} /> : null}
+        {showVisuals ? <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} onDrawing={d.revision ? onOpen : undefined} /> : null}
         {/* On a phone the share button sits at the end of this line. */}
         {slug ? (
           <span className="ml-auto md:hidden">

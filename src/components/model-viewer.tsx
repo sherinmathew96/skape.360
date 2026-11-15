@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Box, Camera, Maximize2, Minimize2, Pause, Play, Plus, RotateCcw, RotateCw, Undo2, ZoomIn, ZoomOut } from "lucide-react";
+import { Box, Camera, Hand, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView } from "@/db/schema";
 import { skyUrl } from "@/lib/sky";
 
@@ -69,6 +69,7 @@ export function ModelViewer({
   poster,
   view = {},
   className = "",
+  touchAction = "pan-y",
   onApi,
 }: {
   src: string;
@@ -76,6 +77,8 @@ export function ModelViewer({
   poster?: string | null;
   view?: ModelView;
   className?: string;
+  /** "none" when the viewer fills the screen and the page has nothing to scroll. */
+  touchAction?: "pan-y" | "none";
   onApi?: (api: ViewerApi) => void;
 }) {
   const ref = useRef<MV>(null);
@@ -92,6 +95,7 @@ export function ModelViewer({
   const [canAR, setCanAR] = useState(false);
   const [full, setFull] = useState(false);
   const [dims, setDims] = useState<{ x: number; y: number; z: number } | null>(null);
+  const [hint, setHint] = useState(false);
   const lighting = LIGHTING;
   const exposure = view.exposure ?? 1;
   const front = view.frontYaw ?? 0;
@@ -125,6 +129,7 @@ export function ModelViewer({
     const onProgress = (e: Event) => setProgress((e as CustomEvent<{ totalProgress: number }>).detail.totalProgress);
     const onLoad = () => {
       setLoaded(true);
+      if (window.matchMedia("(pointer: coarse)").matches) setHint(true);
       setDims(el.getDimensions());
       setCanAR(Boolean(el.canActivateAR));
     };
@@ -286,7 +291,7 @@ export function ModelViewer({
           loading="eager"
           reveal="auto"
           camera-controls=""
-          touch-action="pan-y"
+          touch-action={touchAction}
           interaction-prompt="none"
           min-camera-orbit="auto 0deg auto"
           max-camera-orbit={`Infinity ${MAX_PHI} auto`}
@@ -325,6 +330,8 @@ export function ModelViewer({
           <div className="h-full bg-stage transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
         </div>
       ) : null}
+
+      {hint ? <GestureHint touchAction={touchAction} onDone={() => setHint(false)} /> : null}
 
       {loaded ? (
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
@@ -418,6 +425,46 @@ export function ModelViewer({
           </button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Shown over the model on phones: how to move it. Goes on the first touch or after a few seconds. */
+function GestureHint({ touchAction, onDone }: { touchAction: "pan-y" | "none"; onDone: () => void }) {
+  const done = useRef(onDone);
+  useEffect(() => {
+    done.current = onDone;
+  });
+  useEffect(() => {
+    const away = () => done.current();
+    const t = window.setTimeout(away, 6000);
+    window.addEventListener("pointerdown", away, { capture: true, once: true });
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("pointerdown", away, { capture: true });
+    };
+  }, []);
+  const rows = [
+    { Icon: Hand, text: touchAction === "none" ? "One finger: turn and tilt" : "Drag sideways: turn and tilt" },
+    { Icon: ZoomIn, text: "Pinch: zoom in and out" },
+    { Icon: Move, text: "Two fingers: move" },
+  ];
+  return (
+    <div role="note" aria-live="polite" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 p-6">
+      <div className="w-full max-w-[280px] rounded-2xl bg-white/95 p-4 shadow-[0_12px_40px_rgba(41,45,50,0.2)]">
+        <p className="mb-2 text-sm font-semibold">Move the model</p>
+        <ul className="space-y-2.5">
+          {rows.map(({ Icon, text }) => (
+            <li key={text} className="flex items-center gap-3 text-sm">
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#f4f1ff] text-primary" aria-hidden="true">
+                <Icon size={18} strokeWidth={1.8} />
+              </span>
+              {text}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-muted">Touch anywhere to start.</p>
+      </div>
     </div>
   );
 }
