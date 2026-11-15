@@ -34,7 +34,7 @@ export const FILE_KINDS = {
     contentTypes: ["image/jpeg", "image/png", "image/webp"],
     storedType: null,
     maxBytes: 40 * 1024 * 1024,
-    help: "Rendered views as JPG, PNG or WebP, up to 40 MB each. Kept at full quality.",
+    help: "Rendered views as JPG, PNG or WebP, up to 40 MB each. Compressed at high quality, up to 4K.",
   },
   photo: {
     label: "photo",
@@ -43,7 +43,7 @@ export const FILE_KINDS = {
     contentTypes: ["image/jpeg", "image/png", "image/webp"],
     storedType: null,
     maxBytes: 25 * 1024 * 1024,
-    help: "Take a photo or choose from the gallery. Photos are reduced to about 2000 px before uploading.",
+    help: "Take a photo or choose from the gallery. Photos are compressed to about 2400 px before uploading.",
   },
   receipt: {
     label: "receipt or bill",

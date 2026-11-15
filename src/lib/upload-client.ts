@@ -2,14 +2,16 @@
 
 import { startUpload } from "@/app/studio-actions";
 import type { FileKind } from "./file-kinds";
+import { compressImage } from "./shrink-image";
 
 /** Sends one file to storage (R2 or this computer) and returns its id. Browser only. */
 export async function uploadFile(
   projectId: string | null,
   kind: FileKind,
-  file: File,
+  original: File,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<string> {
+  const file = await compressImage(original, kind);
   const ticket = await startUpload({ projectId, kind, name: file.name, size: file.size, type: file.type });
   if ("error" in ticket) throw new Error(ticket.error);
   await new Promise<void>((resolve, reject) => {
