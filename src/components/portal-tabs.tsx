@@ -5,12 +5,15 @@ import { usePathname } from "next/navigation";
 
 export type PortalTab = { href: string; label: string; count?: number };
 
-/** The client's sections; counts show only for what waits on them. */
+/**
+ * The client's sections as pill tabs. On a wide screen they sit in one row;
+ * on a phone the row slides sideways, with no scrollbar showing.
+ */
 export function PortalTabs({ tabs }: { tabs: PortalTab[] }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Project sections" className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
-      <ul className="flex gap-6">
+    <nav aria-label="Project sections" className="-mx-5 overflow-x-auto overflow-y-hidden px-5 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+      <ul className="flex w-max gap-1 pb-3 md:w-auto md:flex-wrap">
         {tabs.map((t) => {
           const active = pathname === t.href || pathname.startsWith(`${t.href}/`);
           return (
@@ -18,7 +21,9 @@ export function PortalTabs({ tabs }: { tabs: PortalTab[] }) {
               <Link
                 href={t.href}
                 aria-current={active ? "page" : undefined}
-                className={`-mb-px flex h-11 items-center gap-2 border-b-2 ${active ? "border-primary font-medium text-primary" : "border-transparent text-muted hover:text-primary"}`}
+                className={`flex h-9 items-center gap-2 rounded-full px-4 text-sm transition-colors ${
+                  active ? "bg-[#f1edff] font-semibold text-primary" : "text-muted hover:bg-ground hover:text-text"
+                }`}
               >
                 {t.label}
                 {t.count ? (

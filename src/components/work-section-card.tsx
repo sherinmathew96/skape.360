@@ -1,7 +1,19 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useSyncExternalStore } from "react";
 import { ChevronRight } from "lucide-react";
+
+// Which main work is open on this page; opening one closes the other.
+let openCard: string | null = null;
+const listeners = new Set<() => void>();
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+const setOpenCard = (id: string | null) => {
+  openCard = id;
+  listeners.forEach((l) => l());
+};
 
 /**
  * A main work as a card that shows only its title row (number, name, how
@@ -30,8 +42,8 @@ export function WorkSectionCard({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
   const id = useId();
+  const open = useSyncExternalStore(subscribe, () => openCard === id, () => false);
   return (
     <section className="card overflow-hidden">
       <div className="flex items-center gap-2 pr-3 md:pr-4">
@@ -40,7 +52,7 @@ export function WorkSectionCard({
             type="button"
             aria-expanded={open}
             aria-controls={id}
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => setOpenCard(open ? null : id)}
             className="group flex w-full min-w-0 items-center gap-3 py-4 pl-4 text-left md:pl-5"
           >
             <ChevronRight

@@ -59,6 +59,7 @@ export function VisualModal({
   kind,
   fileBase,
   slug,
+  startIndex = 0,
   onKind,
   onClose,
 }: {
@@ -67,10 +68,12 @@ export function VisualModal({
   kind: VisualKind;
   fileBase: string;
   slug: string;
+  /** Which model, tour or render to show first */
+  startIndex?: number;
   onKind: (k: VisualKind) => void;
   onClose: () => void;
 }) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(startIndex);
   const [talk, setTalk] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const list = kind === "model" ? visuals.models : kind === "tour" ? visuals.tours : visuals.renders;

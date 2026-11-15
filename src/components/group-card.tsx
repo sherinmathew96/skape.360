@@ -16,12 +16,10 @@ function readOpen(projectId: string): string {
   }
 }
 
+/** Opening a group closes the one that was open: one at a time. */
 function setOpen(projectId: string, key: string, open: boolean) {
-  const keys = new Set(readOpen(projectId).split(",").filter(Boolean));
-  if (open) keys.add(key);
-  else keys.delete(key);
   try {
-    localStorage.setItem(OPEN_KEY(projectId), [...keys].join(","));
+    localStorage.setItem(OPEN_KEY(projectId), open ? key : "");
   } catch {}
   openListeners.forEach((l) => l());
 }
@@ -32,8 +30,9 @@ const subscribeOpen = (l: () => void) => {
 };
 
 /**
- * A drawing group as a card that folds to its title row. Which groups are
- * open is remembered on this device; a project with one group starts open.
+ * A drawing group as a card that folds to its title row. Only one is open at
+ * a time, and which one is remembered on this device; a project with one
+ * group starts open.
  */
 export function GroupCard({
   projectId,

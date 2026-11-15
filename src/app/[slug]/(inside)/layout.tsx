@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Mark } from "@/components/mark";
 import { PortalBell } from "@/components/portal-bell";
 import { PortalTabs, type PortalTab } from "@/components/portal-tabs";
 import { portalUnread } from "@/lib/client-updates";
@@ -27,25 +26,22 @@ export default async function PortalInside({ children, params }: { children: Rea
 
   return (
     <div className="min-h-dvh bg-ground">
-      <header className="border-b border-border bg-surface">
+      {/* A light bar that stays on top: the studio's logo, the project, the bell; the sections below as pills. */}
+      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
         <div className="mx-auto max-w-[1136px] px-5 md:px-8">
-          <div className="flex items-center justify-between gap-4 py-4">
-            <Link href={base} className="flex min-w-0 items-center gap-2.5" aria-label={`${portal.projectName}, back to the cover`}>
-              <Mark size={24} />
-              <span className="truncate font-medium">{portal.projectName}</span>
+          <div className="flex h-16 items-center gap-3 md:gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/studio-skape-logo.png" alt="Studio Skape" width={61} height={24} className="h-6 w-auto flex-none" />
+            <span className="h-6 w-px flex-none bg-border" aria-hidden="true" />
+            <Link href={base} className="min-w-0 flex-1 truncate font-semibold tracking-[-0.01em] hover:text-primary" title="Back to the cover">
+              {portal.projectName}
             </Link>
-            <div className="flex flex-none items-center gap-3">
-              <span className="hidden text-xs text-muted sm:inline">Studio Skape</span>
-              <PortalBell href={`${base}/updates`} unread={unread} />
-            </div>
+            <PortalBell href={`${base}/updates`} unread={unread} />
           </div>
           <PortalTabs tabs={tabs} />
         </div>
       </header>
       <main className="mx-auto max-w-[1136px] px-5 pb-16 pt-6 md:px-8 md:pt-8">{children}</main>
-      <footer className="mx-auto max-w-[1136px] px-5 pb-10 text-xs text-muted md:px-8">
-        Shared privately with {portal.clientName} by Studio Skape. Please do not forward this address.
-      </footer>
     </div>
   );
 }

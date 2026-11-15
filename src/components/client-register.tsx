@@ -40,7 +40,6 @@ export function ClientRegister({
   initialView?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<string>("all");
   const [status, setStatus] = useState<DrawingStatus | "all">("all");
   const [openId, setOpenId] = useState<string | null>(() => {
     const d = register.flatMap((g) => g.drawings).find((x) => x.id === initialId);
@@ -69,7 +68,7 @@ export function ClientRegister({
       })),
     [register, query, status],
   );
-  const shownGroups = groups.filter((g) => (group === "all" || g.key === group) && g.drawings.length > 0);
+  const shownGroups = groups.filter((g) => g.drawings.length > 0);
   // The order the viewer steps through: what's on screen, drawings with a file only.
   const viewable = shownGroups.flatMap((g) => g.drawings).filter((d) => d.revision);
   const all = register.flatMap((g) => g.drawings);
@@ -94,15 +93,10 @@ export function ClientRegister({
     };
   }, [open, at, viewable]);
 
-  const chip = (active: boolean) =>
-    `flex h-10 flex-none items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
-      active ? "bg-primary text-white" : "bg-surface text-muted shadow-[var(--lift)] hover:text-primary"
-    }`;
-
   return (
     <>
-      {/* Find: by name, by group, by status. */}
-      <div className="mb-6 space-y-3">
+      {/* Find: by name or status. */}
+      <div className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-0 flex-1 basis-60">
             <label htmlFor="drawing-search" className="sr-only">Search drawings</label>
@@ -134,25 +128,10 @@ export function ClientRegister({
             </select>
           </div>
         </div>
-        {register.length > 1 ? (
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0" role="group" aria-label="Groups">
-            <button type="button" aria-pressed={group === "all"} onClick={() => setGroup("all")} className={chip(group === "all")}>
-              All <span className="num opacity-70">{all.length}</span>
-            </button>
-            {register.map((g) => {
-              const key = g.id ?? "general";
-              return (
-                <button key={key} type="button" aria-pressed={group === key} onClick={() => setGroup(key)} className={chip(group === key)}>
-                  {g.name} <span className="num opacity-70">{g.drawings.length}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
 
       {shownGroups.length === 0 ? (
-        <p className="empty">No drawings match. Clear the search or pick another group or status.</p>
+        <p className="empty">No drawings match. Clear the search or pick another status.</p>
       ) : (
         <div className="space-y-6">
           {shownGroups.map((g) => (
@@ -163,12 +142,11 @@ export function ClientRegister({
               name={g.name}
               count={g.drawings.length}
               startOpen={shownGroups.length === 1}
-              forceOpen={Boolean(query.trim()) || status !== "all" || group !== "all"}
+              forceOpen={Boolean(query.trim()) || status !== "all"}
             >
               {/* Column names on wide screens; phones read each row on its own. */}
-              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_72px_44px_96px_140px_260px_20px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_44px_96px_140px_260px_20px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
                 <span>Drawing</span>
-                <span>Sheet</span>
                 <span>Rev</span>
                 <span>Issued</span>
                 <span>Status</span>
@@ -284,18 +262,17 @@ function DrawingRow({ drawing: d, showVisuals, onOpen, onVisual }: { drawing: Dr
           <span className={`block truncate font-medium ${d.revision ? "group-hover:text-primary" : ""}`}>{d.title}</span>
           {/* On phones the details sit under the name. */}
           <span className="num block truncate text-xs text-muted md:hidden">
-            {[d.number, d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" · ")}
+            {[d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" · ")}
           </span>
         </span>
       </span>
-      <span className="num hidden truncate font-mono text-xs text-muted md:block">{d.number ?? "–"}</span>
       <span className="num hidden font-mono text-xs md:block">{d.revision ? `R${d.revision.rev}` : "–"}</span>
       <span className="num hidden text-sm text-muted md:block">{issued ?? "Not issued"}</span>
     </>
   );
-  const infoGrid = "grid min-w-0 grid-cols-1 items-center gap-x-4 text-left md:col-span-4 md:grid-cols-[minmax(0,1fr)_72px_44px_96px]";
+  const infoGrid = "grid min-w-0 grid-cols-1 items-center gap-x-4 text-left md:col-span-3 md:grid-cols-[minmax(0,1fr)_44px_96px]";
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 transition-colors hover:bg-[#fbfbff] md:grid-cols-[minmax(0,1fr)_72px_44px_96px_140px_260px_20px] md:px-6">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 transition-colors hover:bg-[#fbfbff] md:grid-cols-[minmax(0,1fr)_44px_96px_140px_260px_20px] md:px-6">
       {d.revision ? (
         <button type="button" onClick={onOpen} aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${STATUS_STYLE[d.status].label}`} className={`group ${infoGrid}`}>
           {info}
