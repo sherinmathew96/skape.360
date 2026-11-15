@@ -7,7 +7,6 @@
  * - turns old specular-glossiness materials (SketchUp, older exporters) into
  *   matte building materials: those exporters mark everything as half-mirror,
  *   which washes textures out under real lighting;
- * - draws repeated objects (plants, windows, railings) once with GPU instancing;
  * - merges the rest by material, so the graphics card draws far fewer pieces;
  * - compresses geometry with meshopt, which the viewer decodes on its own;
  * - resizes textures over 2048 px and stores them as WebP.
@@ -100,7 +99,8 @@ export async function optimizeModel(file: File, onStep?: (step: string) => void)
   realisticMaterials(doc);
   await doc.transform(
     fn.dedup(),
-    fn.instance({ min: 2 }),
+    // No GPU instancing: the viewer measures instanced parts at the wrong size,
+    // which drops the floor shadow below the model (it looks like it floats).
     fn.flatten(),
     fn.join({ keepNamed: false }),
     fn.weld(),
