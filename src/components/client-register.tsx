@@ -5,6 +5,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, FileText, Search, X } from "luci
 import type { DrawingStatus } from "@/db/schema";
 import type { clientRegister } from "@/lib/drawings";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
+import { VisualButtons, VisualModal, type VisualKind } from "./client-visuals";
 import { DrawingViewer } from "./drawing-viewer";
 
 type Register = Awaited<ReturnType<typeof clientRegister>>;
@@ -35,6 +36,7 @@ export function ClientRegister({
     return d?.revision ? d.id : null;
   });
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [visual, setVisual] = useState<{ id: string; kind: VisualKind } | null>(null);
 
   const groups = useMemo(
     () =>
@@ -60,6 +62,7 @@ export function ClientRegister({
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
+    const before = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpenId(null);
@@ -69,7 +72,7 @@ export function ClientRegister({
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      document.body.style.overflow = before;
     };
   }, [open, at, viewable]);
 
@@ -140,18 +143,19 @@ export function ClientRegister({
                 {g.name} <span className="num ml-1 text-sm font-normal text-muted">{g.drawings.length}</span>
               </h2>
               {/* Column names on wide screens; phones read each row on its own. */}
-              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_96px_56px_120px_190px_36px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_72px_44px_96px_140px_260px_20px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
                 <span>Drawing</span>
                 <span>Sheet</span>
                 <span>Rev</span>
                 <span>Issued</span>
                 <span>Status</span>
+                <span>3D · 360° · Renders</span>
                 <span />
               </div>
               <ul>
                 {g.drawings.map((d) => (
                   <li key={d.id} className="border-t border-rule">
-                    <DrawingRow drawing={d} onOpen={() => setOpenId(d.id)} />
+                    <DrawingRow drawing={d} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
                   </li>
                 ))}
               </ul>
@@ -159,6 +163,17 @@ export function ClientRegister({
           ))}
         </div>
       )}
+
+      {visual && all.find((d) => d.id === visual.id) ? (
+        <VisualModal
+          title={all.find((d) => d.id === visual.id)!.title}
+          visuals={all.find((d) => d.id === visual.id)!.visuals}
+          kind={visual.kind}
+          fileBase={fileBase}
+          onKind={(kind) => setVisual({ id: visual.id, kind })}
+          onClose={() => setVisual(null)}
+        />
+      ) : null}
 
       {open && open.revision ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-[#14141a]/70 backdrop-brightness-75 md:p-6" role="dialog" aria-modal="true" aria-label={open.title}>
@@ -207,17 +222,20 @@ export function ClientRegister({
   );
 }
 
-/** One drawing as a row: name, sheet, revision, issue date and status. Opens the current revision. */
-function DrawingRow({ drawing: d, onOpen }: { drawing: Drawing; onOpen: () => void }) {
+/**
+ * One drawing as a row: name, sheet, revision, issue date, status, then its
+ * 3D, 360° and renders. The name side opens the current revision.
+ */
+function DrawingRow({ drawing: d, onOpen, onVisual }: { drawing: Drawing; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
   const issued = d.revision ? dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt) : null;
-  const body = (
+  const info = (
     <>
       <span className="flex min-w-0 items-center gap-3">
         <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#f6f7fb] text-[#9197b3]" aria-hidden="true">
           <FileText size={18} strokeWidth={1.5} />
         </span>
         <span className="min-w-0">
-          <span className="block truncate font-medium">{d.title}</span>
+          <span className={`block truncate font-medium ${d.revision ? "group-hover:text-primary" : ""}`}>{d.title}</span>
           {/* On phones the details sit under the name. */}
           <span className="num block truncate text-xs text-muted md:hidden">
             {[d.number, d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" · ")}
@@ -227,20 +245,29 @@ function DrawingRow({ drawing: d, onOpen }: { drawing: Drawing; onOpen: () => vo
       <span className="num hidden truncate font-mono text-xs text-muted md:block">{d.number ?? "–"}</span>
       <span className="num hidden font-mono text-xs md:block">{d.revision ? `R${d.revision.rev}` : "–"}</span>
       <span className="num hidden text-sm text-muted md:block">{issued ?? "Not issued"}</span>
+    </>
+  );
+  const infoGrid = "grid min-w-0 grid-cols-1 items-center gap-x-4 text-left md:col-span-4 md:grid-cols-[minmax(0,1fr)_72px_44px_96px]";
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 transition-colors hover:bg-[#fbfbff] md:grid-cols-[minmax(0,1fr)_72px_44px_96px_140px_260px_20px] md:px-6">
+      {d.revision ? (
+        <button type="button" onClick={onOpen} aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${STATUS_STYLE[d.status].label}`} className={`group ${infoGrid}`}>
+          {info}
+        </button>
+      ) : (
+        <div className={infoGrid}>
+          <span className="contents opacity-80">{info}</span>
+        </div>
+      )}
       <span className="min-w-0 justify-self-end md:justify-self-start">
         <StatusChip status={d.status} />
       </span>
-      <span className="hidden justify-self-end md:block" aria-hidden="true">
-        {d.revision ? <ArrowRight size={16} strokeWidth={1.8} className="text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" /> : null}
+      <span className="col-span-2 min-w-0 empty:hidden md:col-span-1">
+        <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} />
       </span>
-    </>
-  );
-  const grid = "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-5 py-3 text-left md:grid-cols-[minmax(0,1fr)_96px_56px_120px_190px_36px] md:px-6";
-  return d.revision ? (
-    <button type="button" onClick={onOpen} aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${STATUS_STYLE[d.status].label}`} className={`group ${grid} transition-colors hover:bg-[#fbfbff]`}>
-      {body}
-    </button>
-  ) : (
-    <div className={`${grid} opacity-70`}>{body}</div>
+      <span className="hidden justify-self-end md:block" aria-hidden="true">
+        {d.revision ? <ArrowRight size={16} strokeWidth={1.8} className="text-muted" /> : null}
+      </span>
+    </div>
   );
 }

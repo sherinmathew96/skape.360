@@ -27,6 +27,15 @@ export const FILE_KINDS = {
     maxBytes: 80 * 1024 * 1024,
     help: "A PDF (best) or a JPG/PNG of the sheet, up to 80 MB.",
   },
+  render: {
+    label: "render image",
+    accept: ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp",
+    extensions: [".jpg", ".jpeg", ".png", ".webp"],
+    contentTypes: ["image/jpeg", "image/png", "image/webp"],
+    storedType: null,
+    maxBytes: 40 * 1024 * 1024,
+    help: "Rendered views as JPG, PNG or WebP, up to 40 MB each. Kept at full quality.",
+  },
   photo: {
     label: "photo",
     accept: "image/*",

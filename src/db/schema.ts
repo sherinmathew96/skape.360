@@ -1020,3 +1020,57 @@ export const works = pgTable(
   },
   (t) => [index("works_project_idx").on(t.projectId, t.position)],
 );
+
+// ── What goes with a drawing: its 3D models, 360° tours and render images ──
+
+/** A 3D model shown with a drawing. A model can go with several drawings. */
+export const drawingModels = pgTable(
+  "drawing_models",
+  {
+    drawingId: uuid("drawing_id")
+      .notNull()
+      .references(() => drawings.id, { onDelete: "cascade" }),
+    modelId: uuid("model_id")
+      .notNull()
+      .references(() => models3d.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.drawingId, t.modelId] }), index("drawing_models_model_idx").on(t.modelId)],
+);
+
+/** A 360° tour shown with a drawing. */
+export const drawingTours = pgTable(
+  "drawing_tours",
+  {
+    drawingId: uuid("drawing_id")
+      .notNull()
+      .references(() => drawings.id, { onDelete: "cascade" }),
+    tourId: uuid("tour_id")
+      .notNull()
+      .references(() => tours.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.drawingId, t.tourId] }), index("drawing_tours_tour_idx").on(t.tourId)],
+);
+
+/** A rendered still (JPG/PNG) of what the drawing shows. */
+export const drawingRenders = pgTable(
+  "drawing_renders",
+  {
+    id: id(),
+    drawingId: uuid("drawing_id")
+      .notNull()
+      .references(() => drawings.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    position: integer("position").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("drawing_renders_drawing_idx").on(t.drawingId, t.position)],
+);

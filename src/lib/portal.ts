@@ -7,6 +7,7 @@ import { getDb, schema as s } from "@/db";
 import { clientRegister } from "./drawings";
 import { clientSiteUpdates } from "./site";
 import { getTours } from "./studio";
+import { visualFileIds } from "./visuals";
 import { listWorks, summariseWorks } from "./works";
 
 /** First-level paths the app already uses; a portal can't take them. */
@@ -162,7 +163,7 @@ export async function isPortalFile(portal: Portal, fileId: string) {
   return (
     models.some((m) => m.fileId === fileId || m.coverFileId === fileId) ||
     tours.some((t) => t.scenes.some((sc) => sc.fileId === fileId)) ||
-    register.some((g) => g.drawings.some((d) => d.revision?.fileId === fileId)) ||
+    register.some((g) => g.drawings.some((d) => d.revision?.fileId === fileId || visualFileIds(d.visuals).includes(fileId))) ||
     siteUpdates.some((r) => r.photos.some((p) => p.fileId === fileId))
   );
 }

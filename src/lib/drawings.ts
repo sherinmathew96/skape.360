@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { drawingVisuals, NO_VISUALS } from "./visuals";
 import { getDb, schema as s } from "@/db";
 
 export const DISCIPLINE_LABEL: Record<s.Discipline, string> = {
@@ -138,7 +139,7 @@ export function groupRegister<T extends { groupId: string | null }>(groups: { id
 export async function clientRegister(projectId: string) {
   const [groups, all] = await Promise.all([listGroups(projectId), listDrawings(projectId)]);
   const visible = all.filter((d) => d.clientVisible);
-  const shown = await clientDrawings(visible.map((d) => d.id));
+  const [shown, visuals] = await Promise.all([clientDrawings(visible.map((d) => d.id)), drawingVisuals(visible.map((d) => d.id))]);
   const rows = visible.map((d) => ({
     id: d.id,
     number: d.number,
@@ -147,6 +148,7 @@ export async function clientRegister(projectId: string) {
     status: d.status,
     statusChangedAt: d.statusChangedAt,
     revision: shown.find((x) => x.id === d.id)?.revision ?? null,
+    visuals: visuals.get(d.id) ?? NO_VISUALS,
   }));
   return groupRegister(groups, rows).filter((g) => g.drawings.length > 0);
 }

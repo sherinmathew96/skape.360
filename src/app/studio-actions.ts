@@ -16,7 +16,7 @@ import { can } from "@/lib/permissions";
 import { FILE_KINDS, type FileKind } from "@/lib/file-kinds";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { loadShare, shareCookieName, shareCookieValue } from "@/lib/share";
-import { deleteStored, storedSize, uploadTarget } from "@/lib/storage";
+import { deleteStored, deleteStoredWithCopies, storedSize, uploadTarget } from "@/lib/storage";
 import type { FormState } from "./actions";
 
 const uuid = z.string().uuid();
@@ -117,8 +117,9 @@ async function claimUpload(user: SessionUser, projectId: string, fileId: string)
 
 // ── 3D models ───────────────────────────────────────────────────────────────
 
-export async function createModel(input: { projectId: string; fileId: string; title: string; optimized?: boolean }) {
+export async function createModel(input: { projectId: string; fileId: string; title: string; optimized?: boolean; drawingId?: string }) {
   const { user, project } = await requireStudioProject(input.projectId);
+  const drawing = input.drawingId ? await findDrawing(project.id, input.drawingId) : null;
   const file = await claimUpload(user, project.id, input.fileId);
   const title = input.title.trim() || file.name.replace(/\.glb$/i, "");
   const db = await getDb();
@@ -126,6 +127,7 @@ export async function createModel(input: { projectId: string; fileId: string; ti
     .insert(s.models3d)
     .values({ projectId: project.id, title, fileId: file.id, optimized: Boolean(input.optimized), createdBy: user.id })
     .returning({ id: s.models3d.id });
+  if (drawing) await db.insert(s.drawingModels).values({ drawingId: drawing.id, modelId: model.id }).onConflictDoNothing();
   await audit(user, "create", "model", model.id);
   refresh(project.id);
   return { id: model.id };
@@ -516,4 +518,110 @@ export async function unlockShare(_: FormState, formData: FormData): Promise<For
     maxAge: 60 * 60 * 24 * 30,
   });
   redirect(`/s/${link.token}`);
+}
+
+// ── What goes with a drawing: 3D models, 360° tours and render images ───────
+
+async function findDrawing(projectId: string, drawingId: string) {
+  const db = await getDb();
+  const [drawing] = await db
+    .select({ id: s.drawings.id, title: s.drawings.title })
+    .from(s.drawings)
+    .where(and(eq(s.drawings.id, uuid.parse(drawingId)), eq(s.drawings.projectId, projectId), isNull(s.drawings.deletedAt)));
+  if (!drawing) throw new Error("That drawing was not found.");
+  return drawing;
+}
+
+type VisualResult = { ok: true } | { error: string };
+const fail = (err: unknown): VisualResult => ({ error: err instanceof Error ? err.message : "That didn't work. Try again." });
+
+/** Shows an existing 3D model or 360° tour with a drawing, or stops showing it (the model or tour itself stays). */
+export async function setDrawingLink(input: { projectId: string; drawingId: string; kind: "model" | "tour"; itemId: string; linked: boolean }): Promise<VisualResult> {
+  try {
+    const { user, project } = await requireStudioProject(input.projectId);
+    const drawing = await findDrawing(project.id, input.drawingId);
+    const itemId = uuid.parse(input.itemId);
+    const db = await getDb();
+    if (input.kind === "model") {
+      const [m] = await db.select({ id: s.models3d.id }).from(s.models3d).where(and(eq(s.models3d.id, itemId), eq(s.models3d.projectId, project.id), isNull(s.models3d.deletedAt)));
+      if (!m) throw new Error("That 3D model was not found.");
+      if (input.linked) await db.insert(s.drawingModels).values({ drawingId: drawing.id, modelId: m.id }).onConflictDoNothing();
+      else await db.delete(s.drawingModels).where(and(eq(s.drawingModels.drawingId, drawing.id), eq(s.drawingModels.modelId, m.id)));
+    } else {
+      const [t] = await db.select({ id: s.tours.id }).from(s.tours).where(and(eq(s.tours.id, itemId), eq(s.tours.projectId, project.id), isNull(s.tours.deletedAt)));
+      if (!t) throw new Error("That 360° tour was not found.");
+      if (input.linked) await db.insert(s.drawingTours).values({ drawingId: drawing.id, tourId: t.id }).onConflictDoNothing();
+      else await db.delete(s.drawingTours).where(and(eq(s.drawingTours.drawingId, drawing.id), eq(s.drawingTours.tourId, t.id)));
+    }
+    await audit(user, input.linked ? "link" : "unlink", `drawing_${input.kind}`, drawing.id, { itemId });
+    refresh(project.id);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** A 360° photo uploaded on a drawing: becomes a one-room tour shown with that drawing. */
+export async function addDrawingPanorama(input: { projectId: string; drawingId: string; fileId: string; title: string }): Promise<VisualResult> {
+  try {
+    const { user, project } = await requireStudioProject(input.projectId);
+    const drawing = await findDrawing(project.id, input.drawingId);
+    const file = await claimUpload(user, project.id, input.fileId);
+    const fromName = file.name.replace(/\.(jpe?g|png|webp)$/i, "").replace(/[-_]+/g, " ").trim();
+    const title = input.title.trim() || `${drawing.title} – 360°`;
+    const db = await getDb();
+    const [tour] = await db.insert(s.tours).values({ projectId: project.id, title, createdBy: user.id }).returning({ id: s.tours.id });
+    await db.insert(s.tourScenes).values({ tourId: tour.id, title: fromName.charAt(0).toUpperCase() + fromName.slice(1) || title, fileId: file.id, position: 0 });
+    await db.insert(s.drawingTours).values({ drawingId: drawing.id, tourId: tour.id });
+    await audit(user, "create", "tour", tour.id, { drawingId: drawing.id });
+    refresh(project.id);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** A render image (JPG/PNG) added to a drawing. */
+export async function addDrawingRender(input: { projectId: string; drawingId: string; fileId: string }): Promise<VisualResult> {
+  try {
+    const { user, project } = await requireStudioProject(input.projectId);
+    const drawing = await findDrawing(project.id, input.drawingId);
+    const file = await claimUpload(user, project.id, input.fileId);
+    const db = await getDb();
+    const [{ last }] = await db.select({ last: max(s.drawingRenders.position) }).from(s.drawingRenders).where(eq(s.drawingRenders.drawingId, drawing.id));
+    const fromName = file.name.replace(/\.(jpe?g|png|webp)$/i, "").replace(/[-_]+/g, " ").trim();
+    await db.insert(s.drawingRenders).values({
+      drawingId: drawing.id,
+      projectId: project.id,
+      fileId: file.id,
+      title: fromName.charAt(0).toUpperCase() + fromName.slice(1) || "Render",
+      position: (last ?? -1) + 1,
+      createdBy: user.id,
+    });
+    refresh(project.id);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Removes a render image and its file for good. */
+export async function deleteDrawingRender(input: { projectId: string; renderId: string }): Promise<VisualResult> {
+  try {
+    const { user, project } = await requireStudioProject(input.projectId);
+    const db = await getDb();
+    const [r] = await db
+      .select({ id: s.drawingRenders.id, fileId: s.drawingRenders.fileId, key: s.files.storageKey })
+      .from(s.drawingRenders)
+      .innerJoin(s.files, eq(s.files.id, s.drawingRenders.fileId))
+      .where(and(eq(s.drawingRenders.id, uuid.parse(input.renderId)), eq(s.drawingRenders.projectId, project.id)));
+    if (!r) throw new Error("That render was not found.");
+    await db.delete(s.files).where(eq(s.files.id, r.fileId)); // takes the render row with it
+    await deleteStoredWithCopies(r.key);
+    await audit(user, "delete", "drawing_render", r.id);
+    refresh(project.id);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
 }

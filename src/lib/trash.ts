@@ -113,7 +113,11 @@ export async function purgeItem(type: TrashType, id: string): Promise<boolean> {
   if (type === "drawing") {
     const [d] = await db.select({ id: s.drawings.id }).from(s.drawings).where(and(eq(s.drawings.id, id), isNotNull(s.drawings.deletedAt)));
     if (!d) return false;
-    const files = await db.select({ id: s.drawingRevisions.fileId }).from(s.drawingRevisions).where(eq(s.drawingRevisions.drawingId, id));
+    const files = [
+      ...(await db.select({ id: s.drawingRevisions.fileId }).from(s.drawingRevisions).where(eq(s.drawingRevisions.drawingId, id))),
+      // Its render images go too; linked 3D models and tours stay (only the links go).
+      ...(await db.select({ id: s.drawingRenders.fileId }).from(s.drawingRenders).where(eq(s.drawingRenders.drawingId, id))),
+    ];
     await dropShareItems("drawing", id);
     await db.delete(s.drawings).where(eq(s.drawings.id, id));
     await dropFiles(files.map((f) => f.id));

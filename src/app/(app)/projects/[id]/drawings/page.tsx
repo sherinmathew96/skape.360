@@ -5,11 +5,14 @@ import { EyeOff, FileText } from "lucide-react";
 import { NewDrawing, StatusSelect } from "@/components/drawing-upload";
 import { STATUS_ORDER, StatusChip } from "@/components/drawing-status";
 import { GroupControls, RowOrder } from "@/components/group-controls";
+import { DrawingVisualsButton } from "@/components/drawing-visuals";
 import { ProjectHeader } from "@/components/project-header";
 import { requireUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
 import { DISCIPLINE_LABEL, groupRegister, listDrawings, listGroups, projectTeam, revLabel } from "@/lib/drawings";
 import { can } from "@/lib/permissions";
+import { listModels, listTours } from "@/lib/studio";
+import { drawingVisuals, NO_VISUALS } from "@/lib/visuals";
 
 export const metadata: Metadata = { title: "Drawings" };
 
@@ -26,6 +29,9 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
     isProjectMember(user.id, project.id),
   ]);
   const edit = can(user, "studio.manage") || can(user, "projects.edit") || member;
+  // Uploading and linking 3D, 360° and renders needs studio rights.
+  const studio = can(user, "studio.manage");
+  const [visuals, allModels, allTours] = await Promise.all([drawingVisuals(drawings.map((d) => d.id)), listModels(project.id), listTours(project.id)]);
   const sections = groupRegister(groups, drawings);
   // Real groups, in order, so the arrows know which is first and last.
   const groupIds = groups.map((g) => g.id);
@@ -80,14 +86,15 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                       <div
                         aria-hidden="true"
                         className={`hidden gap-x-3 border-t border-rule px-5 py-2 text-xs text-muted md:grid ${
-                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_64px]" : "grid-cols-[minmax(0,1fr)_44px_190px_64px]"
+                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                         }`}
                       >
                         {edit ? <span /> : null}
                         <span>Drawing</span>
                         <span className="text-right">Rev</span>
                         <span>Status</span>
-                        <span className="text-right">Updated</span>
+                        <span>3D · 360° · Renders</span>
+                        <span className="hidden text-right xl:block">Updated</span>
                       </div>
                       <ul>
                         {section.drawings.map((d, i) => {
@@ -97,8 +104,8 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               key={d.id}
                               className={`grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 ${
                                 edit
-                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_64px]"
-                                  : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_44px_190px_64px]"
+                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px]"
+                                  : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                               }`}
                             >
                               {edit ? (
@@ -124,7 +131,19 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
                                 {edit ? <StatusSelect key={d.status} projectId={project.id} drawingId={d.id} status={d.status} label={name} /> : <StatusChip status={d.status} />}
                               </span>
-                              <span className="num hidden text-right text-xs text-muted md:block">{dateFmt.format(d.statusChangedAt)}</span>
+                              <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
+                                <DrawingVisualsButton
+                                  projectId={project.id}
+                                  drawing={{ id: d.id, title: name }}
+                                  models={(visuals.get(d.id) ?? NO_VISUALS).models.map((m) => ({ id: m.id, title: m.title }))}
+                                  tours={(visuals.get(d.id) ?? NO_VISUALS).tours.map((x) => ({ id: x.id, title: x.title, scenes: x.scenes.length }))}
+                                  renders={(visuals.get(d.id) ?? NO_VISUALS).renders}
+                                  allModels={allModels.map((m) => ({ id: m.id, title: m.title }))}
+                                  allTours={allTours.filter((x) => x.scenes > 0).map((x) => ({ id: x.id, title: x.title }))}
+                                  canEdit={studio}
+                                />
+                              </span>
+                              <span className="num hidden text-right text-xs text-muted xl:block">{dateFmt.format(d.statusChangedAt)}</span>
                             </li>
                           );
                         })}
