@@ -11,6 +11,7 @@ import type { clientRegister } from "@/lib/drawings";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
 import { VisualButtons, VisualModal, type VisualKind } from "./client-visuals";
 import { DrawingViewer } from "./drawing-viewer";
+import { GroupCard } from "./group-card";
 
 type Register = Awaited<ReturnType<typeof clientRegister>>;
 type Drawing = Register[number]["drawings"][number];
@@ -155,10 +156,15 @@ export function ClientRegister({
       ) : (
         <div className="space-y-6">
           {shownGroups.map((g) => (
-            <section key={g.key} className="card overflow-hidden" aria-labelledby={`group-${g.key}`}>
-              <h2 id={`group-${g.key}`} className="px-5 pb-3 pt-5 text-lg font-semibold tracking-[-0.01em] md:px-6">
-                {g.name} <span className="num ml-1 text-sm font-normal text-muted">{g.drawings.length}</span>
-              </h2>
+            <GroupCard
+              key={g.key}
+              projectId={`portal-${slug ?? "share"}`}
+              groupKey={g.key}
+              name={g.name}
+              count={g.drawings.length}
+              startOpen={shownGroups.length === 1}
+              forceOpen={Boolean(query.trim()) || status !== "all" || group !== "all"}
+            >
               {/* Column names on wide screens; phones read each row on its own. */}
               <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_72px_44px_96px_140px_260px_20px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
                 <span>Drawing</span>
@@ -176,7 +182,7 @@ export function ClientRegister({
                   </li>
                 ))}
               </ul>
-            </section>
+            </GroupCard>
           ))}
         </div>
       )}
