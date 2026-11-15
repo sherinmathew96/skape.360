@@ -195,10 +195,23 @@ export function ModelViewer({
     el.cameraOrbit = `${deg(o.theta) + by}deg ${deg(o.phi)}deg ${o.radius}m`;
   };
 
+  // The viewer's background is see-through; a JPEG straight from it turns that black.
+  // Capture as PNG and lay it on white, as the model is shown.
   const snapshot = useCallback(async () => {
     const el = ref.current;
     if (!el?.loaded) return null;
-    return el.toBlob({ mimeType: "image/jpeg", qualityArgument: 0.9, idealAspect: true });
+    const png = await el.toBlob({ mimeType: "image/png", idealAspect: true });
+    const bitmap = await createImageBitmap(png);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return png;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
   }, []);
 
   useEffect(() => {
