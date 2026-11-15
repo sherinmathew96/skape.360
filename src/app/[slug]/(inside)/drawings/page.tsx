@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ClientRegister } from "@/components/client-register";
 import { loadPortal, portalContent } from "@/lib/portal";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ d?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ d?: string; v?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { portal } = await loadPortal((await params).slug);
@@ -28,7 +28,7 @@ export default async function PortalDrawings({ params, searchParams }: Props) {
       {drawings.length === 0 ? (
         <p className="empty">No drawings listed yet. They appear here with their status as the studio works.</p>
       ) : (
-        <ClientRegister register={register} fileBase={`/${portal.slug}/f/`} initialId={(await searchParams).d} />
+        <ClientRegister register={register} fileBase={`/${portal.slug}/f/`} slug={portal.slug} initialId={(await searchParams).d} initialView={(await searchParams).v} />
       )}
     </>
   );

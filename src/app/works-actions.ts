@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { WORK_STATUSES } from "@/db/schema";
 import { requireProjectMember } from "@/lib/access";
+import { notifyClient } from "@/lib/client-updates";
 import { today } from "@/lib/dates";
 import { can } from "@/lib/permissions";
 
@@ -253,6 +254,9 @@ export async function setWorkStatus(formData: FormData) {
     })
     .where(eq(s.works.id, work.id));
   await db.insert(s.auditLog).values({ userId: user.id, action: status === "done" ? "complete" : status === "started" ? "start" : "reset", entity: "work", entityId: work.id });
+  if (status === "done") {
+    await notifyClient({ projectId: work.projectId, kind: "work", title: `Completed: ${work.title.slice(0, 120)}`, href: "timeline", section: "timeline" });
+  }
   await refresh(work.projectId);
 }
 

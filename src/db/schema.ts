@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -42,6 +43,8 @@ export const users = pgTable("users", {
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   active: boolean("active").notNull().default(true),
+  /** When they last opened the studio inbox of client comments and approvals */
+  inboxSeenAt: timestamp("inbox_seen_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -1073,4 +1076,59 @@ export const drawingRenders = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("drawing_renders_drawing_idx").on(t.drawingId, t.position)],
+);
+
+// ── Client conversation: comments on drawings, models and renders ─────────
+
+export const COMMENT_AUTHORS = ["client", "studio"] as const;
+export type CommentAuthor = (typeof COMMENT_AUTHORS)[number];
+
+/** A comment on exactly one drawing, 3D model or render, by the client or the studio. */
+export const comments = pgTable(
+  "comments",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    drawingId: uuid("drawing_id").references(() => drawings.id, { onDelete: "cascade" }),
+    modelId: uuid("model_id").references(() => models3d.id, { onDelete: "cascade" }),
+    renderId: uuid("render_id").references(() => drawingRenders.id, { onDelete: "cascade" }),
+    author: text("author").$type<CommentAuthor>().notNull(),
+    /** The client's name as they typed it, or the staff member's name */
+    authorName: text("author_name").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    portalId: uuid("portal_id").references(() => clientPortals.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("comments_project_idx").on(t.projectId, t.createdAt),
+    index("comments_drawing_idx").on(t.drawingId),
+    index("comments_model_idx").on(t.modelId),
+    index("comments_render_idx").on(t.renderId),
+    check("comments_one_item", sql`num_nonnulls(${t.drawingId}, ${t.modelId}, ${t.renderId}) = 1`),
+  ],
+);
+
+/** What the studio added for the client: shown under the bell in the client's portal. */
+export const clientUpdates = pgTable(
+  "client_updates",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** revision, status, model, tour, render, site, work, reply */
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    /** Inside the portal, e.g. "drawings?d=<id>&v=renders" */
+    href: text("href").notNull(),
+    /** drawings, models, tours, site or timeline: hidden when that part is switched off */
+    section: text("section").notNull(),
+    /** Hidden when this drawing is hidden from the client or deleted */
+    drawingId: uuid("drawing_id").references(() => drawings.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("client_updates_project_idx").on(t.projectId, t.createdAt)],
 );

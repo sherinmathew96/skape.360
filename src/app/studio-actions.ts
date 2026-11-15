@@ -15,6 +15,7 @@ import { visibleProject } from "@/lib/data";
 import { can } from "@/lib/permissions";
 import { FILE_KINDS, type FileKind } from "@/lib/file-kinds";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { drawingShownToClient, notifyClient, type UpdateSection } from "@/lib/client-updates";
 import { loadShare, shareCookieName, shareCookieValue } from "@/lib/share";
 import { deleteStored, deleteStoredWithCopies, storedSize, uploadTarget } from "@/lib/storage";
 import type { FormState } from "./actions";
@@ -129,6 +130,12 @@ export async function createModel(input: { projectId: string; fileId: string; ti
     .returning({ id: s.models3d.id });
   if (drawing) await db.insert(s.drawingModels).values({ drawingId: drawing.id, modelId: model.id }).onConflictDoNothing();
   await audit(user, "create", "model", model.id);
+  await tellClient(
+    project.id,
+    drawing
+      ? { kind: "model", title: `New 3D model on ${drawing.title}`, href: `drawings?d=${drawing.id}&v=model`, section: "drawings", drawingId: drawing.id }
+      : { kind: "model", title: `New 3D model: ${title}`, href: `3d#m-${model.id}`, section: "models" },
+  );
   refresh(project.id);
   return { id: model.id };
 }
@@ -256,6 +263,7 @@ export async function addScene(input: { projectId: string; tourId: string; fileI
     .insert(s.tourScenes)
     .values({ tourId: tour.id, title, fileId: file.id, position: (last ?? -1) + 1 })
     .returning({ id: s.tourScenes.id });
+  await tellClient(project.id, { kind: "tour", title: `New in the 360° tour ${tour.title}`, href: `360#t-${tour.id}`, section: "tours" });
   refresh(project.id);
   return { id: scene.id };
 }
@@ -522,6 +530,12 @@ export async function unlockShare(_: FormState, formData: FormData): Promise<For
 
 // ── What goes with a drawing: 3D models, 360° tours and render images ───────
 
+/** Rings the client's bell, unless the drawing it hangs on is hidden from them. */
+async function tellClient(projectId: string, u: { kind: string; title: string; href: string; section: UpdateSection; drawingId?: string }) {
+  if (u.drawingId && !(await drawingShownToClient(u.drawingId))) return;
+  await notifyClient({ projectId, ...u });
+}
+
 async function findDrawing(projectId: string, drawingId: string) {
   const db = await getDb();
   const [drawing] = await db
@@ -554,6 +568,15 @@ export async function setDrawingLink(input: { projectId: string; drawingId: stri
       else await db.delete(s.drawingTours).where(and(eq(s.drawingTours.drawingId, drawing.id), eq(s.drawingTours.tourId, t.id)));
     }
     await audit(user, input.linked ? "link" : "unlink", `drawing_${input.kind}`, drawing.id, { itemId });
+    if (input.linked) {
+      await tellClient(project.id, {
+        kind: input.kind,
+        title: `New ${input.kind === "model" ? "3D model" : "360° view"} on ${drawing.title}`,
+        href: `drawings?d=${drawing.id}&v=${input.kind}`,
+        section: "drawings",
+        drawingId: drawing.id,
+      });
+    }
     refresh(project.id);
     return { ok: true };
   } catch (err) {
@@ -574,6 +597,7 @@ export async function addDrawingPanorama(input: { projectId: string; drawingId: 
     await db.insert(s.tourScenes).values({ tourId: tour.id, title: fromName.charAt(0).toUpperCase() + fromName.slice(1) || title, fileId: file.id, position: 0 });
     await db.insert(s.drawingTours).values({ drawingId: drawing.id, tourId: tour.id });
     await audit(user, "create", "tour", tour.id, { drawingId: drawing.id });
+    await tellClient(project.id, { kind: "tour", title: `New 360° view on ${drawing.title}`, href: `drawings?d=${drawing.id}&v=tour`, section: "drawings", drawingId: drawing.id });
     refresh(project.id);
     return { ok: true };
   } catch (err) {
@@ -598,6 +622,7 @@ export async function addDrawingRender(input: { projectId: string; drawingId: st
       position: (last ?? -1) + 1,
       createdBy: user.id,
     });
+    await tellClient(project.id, { kind: "render", title: `New renders of ${drawing.title}`, href: `drawings?d=${drawing.id}&v=renders`, section: "drawings", drawingId: drawing.id });
     refresh(project.id);
     return { ok: true };
   } catch (err) {

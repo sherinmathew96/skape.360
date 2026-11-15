@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { CommentsToggle } from "@/components/comments-toggle";
 import { ModelViewer } from "@/components/model-viewer";
 import { loadPortal, portalContent } from "@/lib/portal";
 
@@ -36,6 +37,9 @@ export default async function PortalModels({ params }: Props) {
                   view={m.view}
                   className="aspect-[4/5] w-full sm:aspect-[4/3] md:aspect-[16/9]"
                 />
+              </div>
+              <div className="mt-3">
+                <CommentsToggle slug={portal.slug} item={{ kind: "model", id: m.id }} title={m.title} />
               </div>
             </section>
           ))}

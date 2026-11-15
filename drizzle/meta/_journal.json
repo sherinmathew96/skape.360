@@ -120,6 +120,13 @@
       "when": 1794760751307,
       "tag": "0016_drawing_visuals",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794765466650,
+      "tag": "0017_client_conversation",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, FileText, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, FileText, MessageSquare, PenLine, Search, X } from "lucide-react";
+import { decidePortalDrawing } from "@/app/portal-talk-actions";
+import { ClientThread } from "./comment-thread";
+import { saveClientName, useClientName } from "./use-client-name";
 import type { DrawingStatus } from "@/db/schema";
 import type { clientRegister } from "@/lib/drawings";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
@@ -21,22 +25,35 @@ const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short
 export function ClientRegister({
   register,
   fileBase,
+  slug,
   initialId,
+  initialView,
 }: {
   register: Register;
   fileBase: string;
+  /** The portal's address; without it (old share links) there are no comments, approvals or visuals */
+  slug?: string;
   /** Opens this drawing straight away */
   initialId?: string;
+  /** With it: its comments, 3D model, 360° view or renders */
+  initialView?: string;
 }) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<string>("all");
   const [status, setStatus] = useState<DrawingStatus | "all">("all");
   const [openId, setOpenId] = useState<string | null>(() => {
     const d = register.flatMap((g) => g.drawings).find((x) => x.id === initialId);
-    return d?.revision ? d.id : null;
+    return d?.revision && (!initialView || initialView === "comments") ? d.id : null;
   });
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [visual, setVisual] = useState<{ id: string; kind: VisualKind } | null>(null);
+  const [visual, setVisual] = useState<{ id: string; kind: VisualKind } | null>(() => {
+    const d = register.flatMap((g) => g.drawings).find((x) => x.id === initialId);
+    const kind = initialView as VisualKind;
+    if (!d || !["model", "tour", "renders"].includes(kind)) return null;
+    const has = kind === "model" ? d.visuals.models.length : kind === "tour" ? d.visuals.tours.length : d.visuals.renders.length;
+    return has ? { id: d.id, kind } : null;
+  });
+  const [talk, setTalk] = useState(initialView === "comments");
 
   const groups = useMemo(
     () =>
@@ -155,7 +172,7 @@ export function ClientRegister({
               <ul>
                 {g.drawings.map((d) => (
                   <li key={d.id} className="border-t border-rule">
-                    <DrawingRow drawing={d} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
+                    <DrawingRow drawing={d} showVisuals={Boolean(slug)} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
                   </li>
                 ))}
               </ul>
@@ -164,12 +181,13 @@ export function ClientRegister({
         </div>
       )}
 
-      {visual && all.find((d) => d.id === visual.id) ? (
+      {slug && visual && all.find((d) => d.id === visual.id) ? (
         <VisualModal
           title={all.find((d) => d.id === visual.id)!.title}
           visuals={all.find((d) => d.id === visual.id)!.visuals}
           kind={visual.kind}
           fileBase={fileBase}
+          slug={slug}
           onKind={(kind) => setVisual({ id: visual.id, kind })}
           onClose={() => setVisual(null)}
         />
@@ -186,6 +204,17 @@ export function ClientRegister({
                 </p>
               </div>
               <StatusChip status={open.status} />
+              {slug ? (
+              <button
+                type="button"
+                aria-pressed={talk}
+                onClick={() => setTalk((v) => !v)}
+                className={`btn h-10 gap-2 px-3 text-sm ${talk ? "btn-primary" : "btn-secondary"}`}
+              >
+                <MessageSquare size={16} strokeWidth={1.8} aria-hidden="true" />
+                Comments
+              </button>
+              ) : null}
               <div className="flex items-center gap-1">
                 <button type="button" className="btn btn-quiet h-10 w-10 p-0" aria-label="Previous drawing" disabled={at <= 0} onClick={() => setOpenId(viewable[at - 1].id)}>
                   <ChevronLeft size={20} strokeWidth={1.8} aria-hidden="true" />
@@ -201,7 +230,9 @@ export function ClientRegister({
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            {slug ? <Approval slug={slug} drawingId={open.id} revision={open.revision} /> : null}
+            <div className="flex min-h-0 flex-1">
+            <div className={`min-h-0 flex-1 overflow-y-auto ${talk ? "hidden md:block" : ""}`}>
               <DrawingViewer
                 key={open.revision.fileId}
                 src={`${fileBase}${open.revision.fileId}`}
@@ -215,6 +246,15 @@ export function ClientRegister({
                 </div>
               ) : null}
             </div>
+            {slug && talk ? (
+              <aside className="flex min-h-0 w-full flex-col border-rule md:w-[360px] md:flex-none md:border-l" aria-label={`Comments on ${open.title}`}>
+                <p className="border-b border-rule px-4 py-3 text-sm font-semibold">Comments on this drawing</p>
+                <div className="min-h-0 flex-1">
+                  <ClientThread key={open.id} slug={slug} item={{ kind: "drawing", id: open.id }} />
+                </div>
+              </aside>
+            ) : null}
+            </div>
           </div>
         </div>
       ) : null}
@@ -226,7 +266,7 @@ export function ClientRegister({
  * One drawing as a row: name, sheet, revision, issue date, status, then its
  * 3D, 360° and renders. The name side opens the current revision.
  */
-function DrawingRow({ drawing: d, onOpen, onVisual }: { drawing: Drawing; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
+function DrawingRow({ drawing: d, showVisuals, onOpen, onVisual }: { drawing: Drawing; showVisuals: boolean; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
   const issued = d.revision ? dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt) : null;
   const info = (
     <>
@@ -263,11 +303,92 @@ function DrawingRow({ drawing: d, onOpen, onVisual }: { drawing: Drawing; onOpen
         <StatusChip status={d.status} />
       </span>
       <span className="col-span-2 min-w-0 empty:hidden md:col-span-1">
-        <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} />
+        {showVisuals ? <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} /> : null}
       </span>
       <span className="hidden justify-self-end md:block" aria-hidden="true">
         {d.revision ? <ArrowRight size={16} strokeWidth={1.8} className="text-muted" /> : null}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Under the drawing's title: approve the current revision or ask for changes.
+ * Once decided, it says who decided and when, until the next revision.
+ */
+function Approval({ slug, drawingId, revision }: { slug: string; drawingId: string; revision: NonNullable<Drawing["revision"]> }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"idle" | "approve" | "changes">("idle");
+  const saved = useClientName();
+  // What they typed here; until then, the name remembered on this device.
+  const [draft, setDraft] = useState<string | null>(null);
+  const name = draft ?? saved;
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const decided = revision.decision;
+
+  if (decided || revision.status === "approved" || revision.status === "changes_requested") {
+    const ok = (decided?.decision ?? revision.status) === "approved";
+    return (
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule px-4 py-2.5 text-sm md:px-6 ${ok ? "bg-[#eef7e9]" : "bg-[#fdeee6]"}`}>
+        {ok ? <Check size={16} strokeWidth={2.2} aria-hidden="true" className="text-[#2d5a1f]" /> : <PenLine size={16} strokeWidth={2} aria-hidden="true" className="text-[#7d3517]" />}
+        <span className="font-medium">{ok ? `R${revision.rev} approved` : `Changes requested on R${revision.rev}`}</span>
+        {decided ? <span className="text-muted">by {decided.name} · {dateFmt.format(new Date(decided.createdAt))}</span> : null}
+        {decided?.comment ? <span className="basis-full whitespace-pre-line text-muted">“{decided.comment}”</span> : null}
+      </div>
+    );
+  }
+
+  const choose = (next: "approve" | "changes") => setMode(next);
+
+  const submit = (decision: "approved" | "changes_requested") =>
+    start(async () => {
+      setError(null);
+      const res = await decidePortalDrawing(slug, { drawingId, decision, name, comment });
+      if ("error" in res) return setError(res.error);
+      saveClientName(name);
+      setMode("idle");
+      router.refresh();
+    });
+
+  return (
+    <div className="border-b border-rule bg-[#fbfbff] px-4 py-2.5 md:px-6">
+      {mode === "idle" ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-sm text-muted">Is R{revision.rev} good to go?</span>
+          <button type="button" onClick={() => choose("approve")} className="btn btn-primary h-9 gap-1.5 px-3 text-sm">
+            <Check size={16} strokeWidth={2.2} aria-hidden="true" />
+            Approve
+          </button>
+          <button type="button" onClick={() => choose("changes")} className="btn btn-secondary h-9 gap-1.5 px-3 text-sm">
+            <PenLine size={16} strokeWidth={1.8} aria-hidden="true" />
+            Request changes
+          </button>
+        </div>
+      ) : (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(mode === "approve" ? "approved" : "changes_requested");
+          }}
+        >
+          <div className="w-full sm:w-48">
+            <label htmlFor={`dec-name-${drawingId}`} className="field-label">Your name</label>
+            <input id={`dec-name-${drawingId}`} value={name} onChange={(e) => setDraft(e.target.value)} required minLength={2} maxLength={60} autoComplete="name" className="field h-10" />
+          </div>
+          <div className="min-w-0 flex-1 basis-60">
+            <label htmlFor={`dec-comment-${drawingId}`} className="field-label">{mode === "changes" ? "What should change?" : "Note (optional)"}</label>
+            <input id={`dec-comment-${drawingId}`} value={comment} onChange={(e) => setComment(e.target.value)} required={mode === "changes"} maxLength={2000} className="field h-10" />
+          </div>
+          <button type="submit" disabled={pending} className={`btn h-10 px-4 ${mode === "approve" ? "btn-primary" : "btn-secondary"}`}>
+            {pending ? "Sending…" : mode === "approve" ? `Approve R${revision.rev}` : "Send request"}
+          </button>
+          <button type="button" onClick={() => setMode("idle")} className="btn btn-quiet h-10 px-3">Cancel</button>
+          {error ? <p role="alert" className="basis-full text-sm text-negative">{error}</p> : null}
+        </form>
+      )}
     </div>
   );
 }

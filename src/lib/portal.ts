@@ -13,7 +13,7 @@ import { listWorks, summariseWorks } from "./works";
 /** First-level paths the app already uses; a portal can't take them. */
 export const RESERVED_SLUGS = new Set([
   "api", "e", "embed", "s", "f", "login", "logout", "print", "projects", "finance", "purchasing", "settings",
-  "suppliers", "tasks", "team", "daybook", "admin", "account", "help", "portal", "home", "studio", "skape", "skape360",
+  "suppliers", "tasks", "team", "daybook", "inbox", "admin", "account", "help", "portal", "home", "studio", "skape", "skape360",
   "manifest.webmanifest", "icon.svg", "favicon.ico", "robots.txt", "sitemap.xml", "_next",
 ]);
 

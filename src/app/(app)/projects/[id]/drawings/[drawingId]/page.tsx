@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/drawing-status";
 import { NewRevision, StatusSelect } from "@/components/drawing-upload";
 import { DrawingViewer } from "@/components/drawing-viewer";
 import { ProjectHeader } from "@/components/project-header";
+import { StudioComments } from "@/components/studio-comments";
 import { DISCIPLINES } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
@@ -60,6 +61,7 @@ export default async function DrawingPage({ params, searchParams }: Props) {
       />
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 grid-cols-1 gap-3">
         <section className="card overflow-hidden" aria-labelledby="sheet-title">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pb-3 pt-4">
             <h2 id="sheet-title" className="card-title min-w-0">
@@ -76,6 +78,8 @@ export default async function DrawingPage({ params, searchParams }: Props) {
             </p>
           )}
         </section>
+        <StudioComments projectId={project.id} drawingId={drawing.id} canReply={edit} />
+        </div>
 
         <div className="grid grid-cols-1 gap-3">
           {edit && latest?.status === "issued" ? (

@@ -5,9 +5,10 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { EmbedCode } from "@/components/embed-code";
 import { ModelWorkspace } from "@/components/model-workspace";
 import { ProjectHeader } from "@/components/project-header";
+import { StudioComments } from "@/components/studio-comments";
 import { SendToClient } from "@/components/send-to-client";
 import { requireUser } from "@/lib/auth";
-import { visibleProject } from "@/lib/data";
+import { isProjectMember, visibleProject } from "@/lib/data";
 import { formatBytes } from "@/lib/file-kinds";
 import { appOrigin } from "@/lib/origin";
 import { can } from "@/lib/permissions";
@@ -54,6 +55,7 @@ export default async function ModelPage({ params }: Props) {
         />
 
         <div className="grid grid-cols-1 gap-3">
+          <StudioComments projectId={project.id} modelId={model.id} canReply={canManage || can(user, "projects.edit") || (await isProjectMember(user.id, project.id))} />
           {canShare ? (
             <section className="card p-5" aria-labelledby="send-title">
               <h2 id="send-title" className="card-title mb-1">Send to client</h2>

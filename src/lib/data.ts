@@ -7,7 +7,7 @@ import { can } from "./permissions";
 import { today } from "./dates";
 
 /** Projects the user may see: all of them, or only those they are on. */
-function visibleProjects(user: SessionUser) {
+export function visibleProjects(user: SessionUser) {
   const notDeleted = isNull(s.projects.deletedAt);
   if (can(user, "projects.view_all")) return notDeleted;
   return and(

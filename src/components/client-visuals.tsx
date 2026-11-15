@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { Box, ChevronLeft, ChevronRight, Image as ImageIcon, Orbit, X } from "lucide-react";
+import { Box, ChevronLeft, ChevronRight, Image as ImageIcon, MessageSquare, Orbit, X } from "lucide-react";
+import { ClientThread } from "./comment-thread";
 import type { DrawingVisuals } from "@/lib/visuals";
 
 // The 3D and 360° viewers are heavy; they load only when opened.
@@ -57,6 +58,7 @@ export function VisualModal({
   visuals,
   kind,
   fileBase,
+  slug,
   onKind,
   onClose,
 }: {
@@ -64,10 +66,12 @@ export function VisualModal({
   visuals: DrawingVisuals;
   kind: VisualKind;
   fileBase: string;
+  slug: string;
   onKind: (k: VisualKind) => void;
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(0);
+  const [talk, setTalk] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const list = kind === "model" ? visuals.models : kind === "tour" ? visuals.tours : visuals.renders;
   const at = Math.min(index, Math.max(0, list.length - 1));
@@ -95,6 +99,8 @@ export function VisualModal({
   ].filter((t) => t.n > 0);
   const file = (id: string) => `${fileBase}${id}`;
   const render = kind === "renders" ? visuals.renders[at] : null;
+  // Comments go with the 3D model or render on screen (not 360° views).
+  const talkItem = kind === "model" && visuals.models[at] ? { kind: "model" as const, id: visuals.models[at].id, title: visuals.models[at].title } : render ? { kind: "render" as const, id: render.id, title: render.title } : null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#14141a]/70 backdrop-brightness-75 md:p-6" role="dialog" aria-modal="true" aria-label={`${title}, ${kind === "model" ? "3D model" : kind === "tour" ? "360° view" : "renders"}`}>
@@ -120,6 +126,12 @@ export function VisualModal({
               ))}
             </div>
           ) : null}
+          {talkItem ? (
+            <button type="button" aria-pressed={talk} onClick={() => setTalk((v) => !v)} className={`btn h-10 gap-2 px-3 text-sm ${talk ? "btn-primary" : "btn-secondary"}`}>
+              <MessageSquare size={16} strokeWidth={1.8} aria-hidden="true" />
+              Comments
+            </button>
+          ) : null}
           <button ref={closeRef} type="button" className="btn btn-secondary h-10 w-10 p-0" aria-label="Close" onClick={onClose}>
             <X size={20} strokeWidth={1.8} aria-hidden="true" />
           </button>
@@ -141,7 +153,8 @@ export function VisualModal({
           </div>
         ) : null}
 
-        <div className="relative min-h-0 flex-1 bg-white">
+        <div className="flex min-h-0 flex-1">
+        <div className={`relative min-h-0 flex-1 bg-white ${talk && talkItem ? "hidden md:block" : ""}`}>
           {kind === "model" && visuals.models[at] ? (
             <ModelViewer
               key={visuals.models[at].id}
@@ -181,6 +194,15 @@ export function VisualModal({
               ) : null}
             </div>
           ) : null}
+        </div>
+        {talk && talkItem ? (
+          <aside className="flex min-h-0 w-full flex-col border-rule md:w-[360px] md:flex-none md:border-l" aria-label={`Comments on ${talkItem.title}`}>
+            <p className="truncate border-b border-rule px-4 py-3 text-sm font-semibold">Comments on {talkItem.title}</p>
+            <div className="min-h-0 flex-1">
+              <ClientThread key={talkItem.id} slug={slug} item={{ kind: talkItem.kind, id: talkItem.id }} />
+            </div>
+          </aside>
+        ) : null}
         </div>
       </div>
     </div>

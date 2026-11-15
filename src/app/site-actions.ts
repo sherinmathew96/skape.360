@@ -10,6 +10,7 @@ import { requireProjectMember } from "@/lib/access";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { deleteStored } from "@/lib/storage";
+import { notifyClient } from "@/lib/client-updates";
 import { claimUploadedFile } from "@/lib/uploads";
 import type { FormState } from "./actions";
 
@@ -69,6 +70,11 @@ export async function saveReport(_: FormState, formData: FormData): Promise<Form
     return { error: "There is already a report for that date. Open it from the list to add to it." };
   }
 
+  let wasShown = false;
+  if (reportId) {
+    const [before] = await db.select({ v: s.siteReports.clientVisible }).from(s.siteReports).where(eq(s.siteReports.id, reportId));
+    wasShown = Boolean(before?.v);
+  }
   let id = reportId;
   const values = { date: input.date, weather: input.weather, labour, workDone: input.workDone, issues: input.issues || null, clientVisible: input.clientVisible };
   if (reportId) {
@@ -86,6 +92,9 @@ export async function saveReport(_: FormState, formData: FormData): Promise<Form
     id = created.id;
   }
   await audit(user, reportId ? "update" : "create", "site_report", id!, { date: input.date });
+  if (input.clientVisible && !wasShown) {
+    await notifyClient({ projectId: project.id, kind: "site", title: `New site update for ${input.date.split("-").reverse().join("-")}`, href: "site", section: "site" });
+  }
   refresh(project.id);
   redirect(`/projects/${project.id}/site/${id}`);
 }

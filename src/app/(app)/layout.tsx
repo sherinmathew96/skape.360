@@ -4,6 +4,8 @@ import { logout } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
 import { Mark } from "@/components/mark";
 import { BottomNav, SettingsLink, SidebarNav } from "@/components/nav";
+import { StudioBell } from "@/components/studio-bell";
+import { studioUnread } from "@/lib/comments";
 import { requireUser } from "@/lib/auth";
 import { listOpenTasks } from "@/lib/data";
 import { today } from "@/lib/dates";
@@ -20,7 +22,7 @@ import type { OfficeLink } from "@/components/nav";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const t = today();
-  const mine = await listOpenTasks(user, { mine: true });
+  const [mine, inbox] = await Promise.all([listOpenTasks(user, { mine: true }), studioUnread(user)]);
   const myOverdue = mine.filter((task) => task.dueDate && task.dueDate < t).length;
 
   const office: OfficeLink[] = [];
@@ -74,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Mark size={28} />
         <span className="flex-1 text-base font-semibold tracking-[-0.01em]">SKAPE360</span>
         <span className="max-w-32 truncate text-xs text-muted">{user.name}</span>
+        <StudioBell unread={inbox} />
         <form action={logout}>
           <button type="submit" aria-label="Sign out" className="btn btn-quiet h-11 w-11 p-0 text-muted">
             <LogOut size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -85,11 +88,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Desktop: a greeting and the project search, above every page. */}
         <div className="mx-auto hidden max-w-[1200px] items-center justify-between gap-6 px-8 pb-2 pt-8 md:flex lg:px-12">
           <p className="text-2xl font-medium tracking-[-0.01em]">Hello {user.name.split(" ")[0]},</p>
+          <div className="flex w-full max-w-[320px] items-center gap-2">
+          <StudioBell unread={inbox} />
           <form action="/projects" role="search" className="relative w-full max-w-[260px]">
             <label htmlFor="global-search" className="sr-only">Search projects</label>
             <Search size={20} strokeWidth={1.6} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9197b3]" />
             <input id="global-search" name="q" type="search" placeholder="Search projects" autoComplete="off" className="field h-11 border-transparent bg-surface pl-11 shadow-[var(--lift)]" />
           </form>
+          </div>
         </div>
         <main id="main" className="mx-auto max-w-[1200px] px-4 pb-28 pt-5 md:px-8 md:pb-12 md:pt-6 lg:px-12">
           {children}

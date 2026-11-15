@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { EyeOff, FileText } from "lucide-react";
+import { EyeOff, FileText, MessageSquare } from "lucide-react";
 import { NewDrawing, StatusSelect } from "@/components/drawing-upload";
 import { STATUS_ORDER, StatusChip } from "@/components/drawing-status";
 import { GroupControls, RowOrder } from "@/components/group-controls";
@@ -13,6 +13,7 @@ import { DISCIPLINE_LABEL, groupRegister, listDrawings, listGroups, projectTeam,
 import { can } from "@/lib/permissions";
 import { listModels, listTours } from "@/lib/studio";
 import { drawingVisuals, NO_VISUALS } from "@/lib/visuals";
+import { awaitingReply } from "@/lib/comments";
 
 export const metadata: Metadata = { title: "Drawings" };
 
@@ -31,7 +32,12 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
   const edit = can(user, "studio.manage") || can(user, "projects.edit") || member;
   // Uploading and linking 3D, 360° and renders needs studio rights.
   const studio = can(user, "studio.manage");
-  const [visuals, allModels, allTours] = await Promise.all([drawingVisuals(drawings.map((d) => d.id)), listModels(project.id), listTours(project.id)]);
+  const [visuals, allModels, allTours, waiting] = await Promise.all([
+    drawingVisuals(drawings.map((d) => d.id)),
+    listModels(project.id),
+    listTours(project.id),
+    awaitingReply(project.id),
+  ]);
   const sections = groupRegister(groups, drawings);
   // Real groups, in order, so the arrows know which is first and last.
   const groupIds = groups.map((g) => g.id);
@@ -117,6 +123,13 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                                   <span className="truncate font-medium group-hover:underline">{d.title}</span>
                                   {d.latest ? <FileText size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Has a drawing file" /> : null}
                                   {!d.clientVisible ? <EyeOff size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Hidden from clients" /> : null}
+                                  {waiting.get(d.id) ? (
+                                    <span className="num inline-flex flex-none items-center gap-1 rounded-full bg-[#fdebdc] px-1.5 py-0.5 text-[11px] font-medium text-[#7a3608]" title="Client comments waiting for a reply">
+                                      <MessageSquare size={11} strokeWidth={2} aria-hidden="true" />
+                                      {waiting.get(d.id)}
+                                      <span className="sr-only"> client comments waiting for a reply</span>
+                                    </span>
+                                  ) : null}
                                 </span>
                                 <span className="block truncate text-xs leading-4 text-muted">
                                   {DISCIPLINE_LABEL[d.discipline]}

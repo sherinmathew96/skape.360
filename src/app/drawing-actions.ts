@@ -2,13 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, desc, eq, isNull, max, min, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, max, min } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { DECISIONS, DISCIPLINES, DRAWING_STATUSES } from "@/db/schema";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
 import { can } from "@/lib/permissions";
+import { STATUS_STYLE } from "@/components/drawing-status";
+import { notifyClient } from "@/lib/client-updates";
+import { recordApproval } from "@/lib/decisions";
 import { storedSize } from "@/lib/storage";
 import type { FormState } from "./actions";
 
@@ -228,6 +231,16 @@ export async function setDrawingStatus(input: { projectId: string; drawingId: st
   const db = await getDb();
   await db.update(s.drawings).set({ status, statusChangedAt: new Date() }).where(eq(s.drawings.id, drawing.id));
   await audit(user, "set_status", "drawing", drawing.id, { from: drawing.status, to: status });
+  if (drawing.clientVisible) {
+    await notifyClient({
+      projectId: project.id,
+      kind: "status",
+      title: `${drawing.title} is now ${STATUS_STYLE[status].label.toLowerCase()}`,
+      href: `drawings?d=${drawing.id}`,
+      section: "drawings",
+      drawingId: drawing.id,
+    });
+  }
   refresh(project.id);
 }
 
@@ -288,14 +301,6 @@ export async function moveDrawing(input: { projectId: string; drawingId: string;
   refresh(project.id);
 }
 
-/** A client's decision moves the drawing along: approved → Production, changes → Revision. */
-async function statusFromDecision(drawingId: string, decision: "approved" | "changes_requested") {
-  const db = await getDb();
-  await db
-    .update(s.drawings)
-    .set({ status: decision === "approved" ? "production" : "revision", statusChangedAt: sql`now()` })
-    .where(and(eq(s.drawings.id, drawingId), sql`${s.drawings.status} <> 'completed'`));
-}
 
 /** Makes the newest draft visible on the client links that include this drawing. */
 export async function issueRevision(formData: FormData) {
@@ -310,6 +315,16 @@ export async function issueRevision(formData: FormData) {
   if (!latest || latest.status !== "draft") return;
   await db.update(s.drawingRevisions).set({ status: "issued", issuedAt: new Date() }).where(eq(s.drawingRevisions.id, latest.id));
   await audit(user, "issue", "drawing", drawing.id, { rev: latest.rev });
+  if (drawing.clientVisible) {
+    await notifyClient({
+      projectId: project.id,
+      kind: "revision",
+      title: `${drawing.title}: R${latest.rev} issued`,
+      href: `drawings?d=${drawing.id}`,
+      section: "drawings",
+      drawingId: drawing.id,
+    });
+  }
   refresh(project.id);
 }
 
@@ -341,17 +356,14 @@ export async function recordDecision(_: FormState, formData: FormData): Promise<
     .orderBy(desc(s.drawingRevisions.rev))
     .limit(1);
   if (!latest || latest.status === "draft") return { error: "Issue the revision to the client first." };
-  await db.transaction(async (tx) => {
-    await tx.insert(s.approvals).values({
-      revisionId: latest.id,
-      decision: parsed.data.decision,
-      name: parsed.data.name,
-      comment: parsed.data.comment || null,
-      recordedBy: user.id,
-    });
-    await tx.update(s.drawingRevisions).set({ status: parsed.data.decision }).where(eq(s.drawingRevisions.id, latest.id));
+  await recordApproval({
+    revisionId: latest.id,
+    drawingId: drawing.id,
+    decision: parsed.data.decision,
+    name: parsed.data.name,
+    comment: parsed.data.comment || null,
+    recordedBy: user.id,
   });
-  await statusFromDecision(drawing.id, parsed.data.decision);
   await audit(user, "record_decision", "drawing", drawing.id, { rev: latest.rev, decision: parsed.data.decision });
   refresh(project.id);
   return { ok: parsed.data.decision === "approved" ? "Approval recorded." : "Change request recorded." };
