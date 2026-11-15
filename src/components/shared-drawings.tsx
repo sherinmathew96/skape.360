@@ -10,7 +10,7 @@ type Shared = NonNullable<Awaited<ReturnType<typeof findShared>>>;
 /**
  * One shared group or drawing at its own address (360.studioskape.in/<name>).
  * It sits behind the project portal's passcode; once given, the visitor sees
- * just that group (or that one drawing), with comments and approval.
+ * just that group (or that one drawing), with comments.
  */
 export async function SharedDrawings({ shared, slug }: { shared: Shared; slug: string }) {
   const portalSlug = await portalSlugFor(shared.projectId);

@@ -1,11 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, ChevronLeft, ChevronRight, FileText, MessageSquare, PenLine, Search, X } from "lucide-react";
-import { decidePortalDrawing } from "@/app/portal-talk-actions";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, FileText, MessageSquare, Search, X } from "lucide-react";
 import { ClientThread } from "./comment-thread";
-import { saveClientName, useClientName } from "./use-client-name";
 import type { DrawingStatus } from "@/db/schema";
 import type { clientRegister } from "@/lib/drawings";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
@@ -36,7 +33,7 @@ export function ClientRegister({
   openAll?: boolean;
   register: Register;
   fileBase: string;
-  /** The portal's address; without it (old share links) there are no comments, approvals or visuals */
+  /** The portal's address; without it (old share links) there are no comments or visuals */
   slug?: string;
   /** Opens this drawing straight away */
   initialId?: string;
@@ -219,7 +216,6 @@ export function ClientRegister({
                 </button>
               </div>
             </div>
-            {slug ? <Approval slug={slug} drawingId={open.id} revision={open.revision} /> : null}
             <div className="flex min-h-0 flex-1">
             <div className={`min-h-0 flex-1 overflow-y-auto ${talk ? "hidden md:block" : ""}`}>
               <DrawingViewer
@@ -303,87 +299,6 @@ function DrawingRow({ drawing: d, slug, onOpen, onVisual }: { drawing: Drawing; 
       <span className="hidden justify-self-end md:block">
         {slug ? <ShareButton kind="drawing" id={d.id} name={d.title} portalSlug={slug} /> : null}
       </span>
-    </div>
-  );
-}
-
-/**
- * Under the drawing's title: approve the current revision or ask for changes.
- * Once decided, it says who decided and when, until the next revision.
- */
-function Approval({ slug, drawingId, revision }: { slug: string; drawingId: string; revision: NonNullable<Drawing["revision"]> }) {
-  const router = useRouter();
-  const [mode, setMode] = useState<"idle" | "approve" | "changes">("idle");
-  const saved = useClientName();
-  // What they typed here; until then, the name remembered on this device.
-  const [draft, setDraft] = useState<string | null>(null);
-  const name = draft ?? saved;
-  const [comment, setComment] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const decided = revision.decision;
-
-  if (decided || revision.status === "approved" || revision.status === "changes_requested") {
-    const ok = (decided?.decision ?? revision.status) === "approved";
-    return (
-      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule px-4 py-2.5 text-sm md:px-6 ${ok ? "bg-[#eef7e9]" : "bg-[#fdeee6]"}`}>
-        {ok ? <Check size={16} strokeWidth={2.2} aria-hidden="true" className="text-[#2d5a1f]" /> : <PenLine size={16} strokeWidth={2} aria-hidden="true" className="text-[#7d3517]" />}
-        <span className="font-medium">{ok ? `R${revision.rev} approved` : `Changes requested on R${revision.rev}`}</span>
-        {decided ? <span className="text-muted">by {decided.name} · {dateFmt.format(new Date(decided.createdAt))}</span> : null}
-        {decided?.comment ? <span className="basis-full whitespace-pre-line text-muted">“{decided.comment}”</span> : null}
-      </div>
-    );
-  }
-
-  const choose = (next: "approve" | "changes") => setMode(next);
-
-  const submit = (decision: "approved" | "changes_requested") =>
-    start(async () => {
-      setError(null);
-      const res = await decidePortalDrawing(slug, { drawingId, decision, name, comment });
-      if ("error" in res) return setError(res.error);
-      saveClientName(name);
-      setMode("idle");
-      router.refresh();
-    });
-
-  return (
-    <div className="border-b border-rule bg-[#fbfbff] px-4 py-2.5 md:px-6">
-      {mode === "idle" ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-sm text-muted">Is R{revision.rev} good to go?</span>
-          <button type="button" onClick={() => choose("approve")} className="btn btn-primary h-9 gap-1.5 px-3 text-sm">
-            <Check size={16} strokeWidth={2.2} aria-hidden="true" />
-            Approve
-          </button>
-          <button type="button" onClick={() => choose("changes")} className="btn btn-secondary h-9 gap-1.5 px-3 text-sm">
-            <PenLine size={16} strokeWidth={1.8} aria-hidden="true" />
-            Request changes
-          </button>
-        </div>
-      ) : (
-        <form
-          className="flex flex-wrap items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit(mode === "approve" ? "approved" : "changes_requested");
-          }}
-        >
-          <div className="w-full sm:w-48">
-            <label htmlFor={`dec-name-${drawingId}`} className="field-label">Your name</label>
-            <input id={`dec-name-${drawingId}`} value={name} onChange={(e) => setDraft(e.target.value)} required minLength={2} maxLength={60} autoComplete="name" className="field h-10" />
-          </div>
-          <div className="min-w-0 flex-1 basis-60">
-            <label htmlFor={`dec-comment-${drawingId}`} className="field-label">{mode === "changes" ? "What should change?" : "Note (optional)"}</label>
-            <input id={`dec-comment-${drawingId}`} value={comment} onChange={(e) => setComment(e.target.value)} required={mode === "changes"} maxLength={2000} className="field h-10" />
-          </div>
-          <button type="submit" disabled={pending} className={`btn h-10 px-4 ${mode === "approve" ? "btn-primary" : "btn-secondary"}`}>
-            {pending ? "Sending…" : mode === "approve" ? `Approve R${revision.rev}` : "Send request"}
-          </button>
-          <button type="button" onClick={() => setMode("idle")} className="btn btn-quiet h-10 px-3">Cancel</button>
-          {error ? <p role="alert" className="basis-full text-sm text-negative">{error}</p> : null}
-        </form>
-      )}
     </div>
   );
 }

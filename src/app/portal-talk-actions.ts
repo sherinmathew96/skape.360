@@ -96,7 +96,11 @@ export async function postPortalComment(slug: string, input: CommentItem, name: 
 }
 
 /** The client approves the drawing's current revision, or asks for changes (which needs a comment). */
+const CLIENT_APPROVAL_OFF = true;
+
 export async function decidePortalDrawing(slug: string, input: { drawingId: string; decision: string; name: string; comment: string }): Promise<Result> {
+  // Client approval is switched off; the studio sets drawing status itself.
+  if (CLIENT_APPROVAL_OFF) return { error: "Approval is not available here." };
   try {
     const portal = await openPortal(slug);
     const drawingId = uuid.parse(input.drawingId);
