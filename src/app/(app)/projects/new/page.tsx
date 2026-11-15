@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createProject } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { ConsultantsField } from "@/components/consultants-field";
 import { requireUser } from "@/lib/auth";
 import { listClients, listStaff } from "@/lib/data";
 import { listFirms } from "@/lib/firms";
@@ -85,6 +86,8 @@ export default async function NewProjectPage() {
                 <Link href="/firms" className="font-medium text-primary hover:underline">Add a firm</Link>
               </p>
             </div>
+
+            <ConsultantsField />
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div>

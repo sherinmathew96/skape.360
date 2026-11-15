@@ -133,6 +133,8 @@ export const projects = pgTable(
     notes: text("notes"),
     /** The agreed professional fee, before GST */
     fee: numeric("fee", { precision: 14, scale: 2 }),
+    /** Other consultants on the project, e.g. PMC: Curves & Lines */
+    consultants: jsonb("consultants").$type<{ role: string; name: string }[]>().notNull().default([]),
     createdBy: uuid("created_by").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -359,6 +361,8 @@ export const drawingGroups = pgTable(
     /** In the recycle bin since (with its drawings); null when not deleted */
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
+    /** Its own address when shared, e.g. "conference-room" (360.studioskape.in/conference-room) */
+    shareSlug: text("share_slug").unique(),
   },
   (t) => [index("drawing_groups_project_idx").on(t.projectId, t.position)],
 );
@@ -383,6 +387,8 @@ export const drawings = pgTable(
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     /** Shown on client links that include the drawing register */
     clientVisible: boolean("client_visible").notNull().default(true),
+    /** Its own address when shared, e.g. "side-d-elevation" */
+    shareSlug: text("share_slug").unique(),
     statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),

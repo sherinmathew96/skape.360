@@ -9,7 +9,9 @@ import { DECISIONS } from "@/db/schema";
 import { portalSeenCookie } from "@/lib/client-updates";
 import { itemValues, listComments, type CommentItem } from "@/lib/comments";
 import { latestIssued, recordApproval } from "@/lib/decisions";
+import { appOrigin } from "@/lib/origin";
 import { loadPortal, type Portal } from "@/lib/portal";
+import { ensureShareSlug } from "@/lib/share-slugs";
 
 type Result<T = undefined> = { ok: true; data?: T } | { error: string };
 export type ClientComment = { id: string; author: "client" | "studio"; authorName: string; body: string; createdAt: string };
@@ -126,4 +128,31 @@ export async function markPortalSeen(slug: string): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
+}
+
+/** A link to one group or drawing, for the client to pass on (it asks for the same passcode). */
+export async function portalShareLink(slug: string, kind: string, id: string): Promise<{ url: string } | { error: string }> {
+  try {
+    const portal = await openPortal(slug);
+    const k = z.enum(["group", "drawing"]).parse(kind);
+    const itemId = uuid.parse(id);
+    const db = await getDb();
+    let name: string | null = null;
+    if (k === "drawing") {
+      if (!(await drawingVisible(portal, itemId))) throw new Error("That drawing was not found.");
+      const [d] = await db.select({ title: s.drawings.title }).from(s.drawings).where(eq(s.drawings.id, itemId));
+      name = d?.title ?? null;
+    } else if (portal.sections.drawings) {
+      const [g] = await db
+        .select({ name: s.drawingGroups.name })
+        .from(s.drawingGroups)
+        .where(and(eq(s.drawingGroups.id, itemId), eq(s.drawingGroups.projectId, portal.projectId), isNull(s.drawingGroups.deletedAt)));
+      name = g?.name ?? null;
+    }
+    if (!name) throw new Error("That was not found.");
+    const share = await ensureShareSlug(k, itemId, name, portal.slug);
+    return { url: `${await appOrigin()}/${share}` };
+  } catch (err) {
+    return fail(err);
+  }
 }

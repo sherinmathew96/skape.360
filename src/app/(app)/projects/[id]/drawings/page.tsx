@@ -8,6 +8,7 @@ import { GroupControls, RowOrder } from "@/components/group-controls";
 import { DrawingVisualsButton } from "@/components/drawing-visuals";
 import { ProjectHeader } from "@/components/project-header";
 import { DrawingRowActions, GroupCard } from "@/components/register-controls";
+import { ShareButton } from "@/components/share-button";
 import { requireUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
 import { DISCIPLINE_LABEL, groupRegister, listDrawings, listGroups, projectTeam, revLabel } from "@/lib/drawings";
@@ -84,7 +85,10 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                   startOpen={sections.length === 1}
                   controls={
                     edit && section.id ? (
-                      <GroupControls projectId={project.id} groupId={section.id} name={section.name} count={section.drawings.length} first={gi === 0} last={gi === groupIds.length - 1} />
+                      <span className="flex flex-none items-center">
+                        <ShareButton kind="group" id={section.id} name={section.name} projectId={project.id} />
+                        <GroupControls projectId={project.id} groupId={section.id} name={section.name} count={section.drawings.length} first={gi === 0} last={gi === groupIds.length - 1} />
+                      </span>
                     ) : null
                   }
                 >
@@ -95,7 +99,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                       <div
                         aria-hidden="true"
                         className={`hidden gap-x-3 border-t border-rule px-5 py-2 text-xs text-muted md:grid ${
-                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_64px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_64px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
+                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_96px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_96px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                         }`}
                       >
                         {edit ? <span /> : null}
@@ -114,7 +118,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               key={d.id}
                               className={`grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 ${
                                 edit
-                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_64px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_64px]"
+                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_96px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_96px]"
                                   : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                               }`}
                             >

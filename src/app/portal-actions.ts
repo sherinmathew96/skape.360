@@ -116,8 +116,11 @@ export async function unlockPortal(_: FormState, formData: FormData): Promise<Fo
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: `/${portal.slug}`,
+    // Site-wide, so shared group and drawing links (360.studioskape.in/<name>) open with it too.
+    path: "/",
     maxAge: 60 * 60 * 24 * 90,
   });
-  redirect(`/${portal.slug}`);
+  // Back to the shared group or drawing it was opened from, if any.
+  const next = String(formData.get("next") ?? "");
+  redirect(/^\/[a-z0-9-]{3,60}$/.test(next) ? next : `/${portal.slug}`);
 }

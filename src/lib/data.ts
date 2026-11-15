@@ -184,6 +184,7 @@ export async function getProject(user: SessionUser, id: string) {
       clientPhone: s.clients.phone,
       firmId: s.projects.firmId,
       firmName: s.firms.name,
+      consultants: s.projects.consultants,
     })
     .from(s.projects)
     .innerJoin(s.clients, eq(s.clients.id, s.projects.clientId))

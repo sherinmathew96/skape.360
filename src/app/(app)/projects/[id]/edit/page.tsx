@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { updateProject } from "@/app/actions";
 import { deleteProject } from "@/app/trash-actions";
 import { ActionForm } from "@/components/action-form";
+import { ConsultantsField } from "@/components/consultants-field";
 import { ProjectHeader } from "@/components/project-header";
 import { PROJECT_STATUSES } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
@@ -102,6 +103,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
                 ))}
               </select>
             </div>
+            <ConsultantsField initial={project.consultants} />
           </ActionForm>
           <Link href={`/projects/${project.id}`} className="mt-4 inline-block text-sm text-muted hover:text-primary hover:underline">Cancel</Link>
         </section>

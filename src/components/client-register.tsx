@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, FileText, MessageSquare, PenLine, Search, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, FileText, MessageSquare, PenLine, Search, X } from "lucide-react";
 import { decidePortalDrawing } from "@/app/portal-talk-actions";
 import { ClientThread } from "./comment-thread";
 import { saveClientName, useClientName } from "./use-client-name";
@@ -12,6 +12,7 @@ import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "./drawing-status";
 import { VisualButtons, VisualModal, type VisualKind } from "./client-visuals";
 import { DrawingViewer } from "./drawing-viewer";
 import { GroupCard } from "./group-card";
+import { ShareButton } from "./share-button";
 
 type Register = Awaited<ReturnType<typeof clientRegister>>;
 type Drawing = Register[number]["drawings"][number];
@@ -29,7 +30,10 @@ export function ClientRegister({
   slug,
   initialId,
   initialView,
+  openAll = false,
 }: {
+  /** Every group open (a shared group or drawing) */
+  openAll?: boolean;
   register: Register;
   fileBase: string;
   /** The portal's address; without it (old share links) there are no comments, approvals or visuals */
@@ -142,10 +146,11 @@ export function ClientRegister({
               name={g.name}
               count={g.drawings.length}
               startOpen={shownGroups.length === 1}
-              forceOpen={Boolean(query.trim()) || status !== "all"}
+              forceOpen={openAll || Boolean(query.trim()) || status !== "all"}
+              controls={slug && g.key !== "general" ? <ShareButton kind="group" id={g.key} name={g.name} portalSlug={slug} /> : null}
             >
               {/* Column names on wide screens; phones read each row on its own. */}
-              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_44px_96px_140px_260px_20px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
+              <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_44px_96px_140px_244px_36px] gap-x-4 border-t border-rule px-6 py-2.5 text-xs font-medium text-muted md:grid">
                 <span>Drawing</span>
                 <span>Rev</span>
                 <span>Issued</span>
@@ -156,7 +161,7 @@ export function ClientRegister({
               <ul>
                 {g.drawings.map((d) => (
                   <li key={d.id} className="border-t border-rule">
-                    <DrawingRow drawing={d} showVisuals={Boolean(slug)} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
+                    <DrawingRow drawing={d} slug={slug} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
                   </li>
                 ))}
               </ul>
@@ -250,7 +255,8 @@ export function ClientRegister({
  * One drawing as a row: name, sheet, revision, issue date, status, then its
  * 3D, 360° and renders. The name side opens the current revision.
  */
-function DrawingRow({ drawing: d, showVisuals, onOpen, onVisual }: { drawing: Drawing; showVisuals: boolean; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
+function DrawingRow({ drawing: d, slug, onOpen, onVisual }: { drawing: Drawing; slug?: string; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
+  const showVisuals = Boolean(slug);
   const issued = d.revision ? dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt) : null;
   const info = (
     <>
@@ -272,7 +278,7 @@ function DrawingRow({ drawing: d, showVisuals, onOpen, onVisual }: { drawing: Dr
   );
   const infoGrid = "grid min-w-0 grid-cols-1 items-center gap-x-4 text-left md:col-span-3 md:grid-cols-[minmax(0,1fr)_44px_96px]";
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 transition-colors hover:bg-[#fbfbff] md:grid-cols-[minmax(0,1fr)_44px_96px_140px_260px_20px] md:px-6">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 transition-colors hover:bg-[#fbfbff] md:grid-cols-[minmax(0,1fr)_44px_96px_140px_244px_36px] md:px-6">
       {d.revision ? (
         <button type="button" onClick={onOpen} aria-label={`Open ${d.title}${d.number ? ` (${d.number})` : ""}, ${STATUS_STYLE[d.status].label}`} className={`group ${infoGrid}`}>
           {info}
@@ -285,11 +291,17 @@ function DrawingRow({ drawing: d, showVisuals, onOpen, onVisual }: { drawing: Dr
       <span className="min-w-0 justify-self-end md:justify-self-start">
         <StatusChip status={d.status} />
       </span>
-      <span className="col-span-2 min-w-0 empty:hidden md:col-span-1">
+      <span className="col-span-2 flex min-w-0 items-center justify-between gap-2 empty:hidden md:col-span-1">
         {showVisuals ? <VisualButtons visuals={d.visuals} title={d.title} onOpen={onVisual} /> : null}
+        {/* On a phone the share button sits at the end of this line. */}
+        {slug ? (
+          <span className="ml-auto md:hidden">
+            <ShareButton kind="drawing" id={d.id} name={d.title} portalSlug={slug} />
+          </span>
+        ) : null}
       </span>
-      <span className="hidden justify-self-end md:block" aria-hidden="true">
-        {d.revision ? <ArrowRight size={16} strokeWidth={1.8} className="text-muted" /> : null}
+      <span className="hidden justify-self-end md:block">
+        {slug ? <ShareButton kind="drawing" id={d.id} name={d.title} portalSlug={slug} /> : null}
       </span>
     </div>
   );

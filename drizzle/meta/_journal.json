@@ -134,6 +134,20 @@
       "when": 1794767361594,
       "tag": "0018_group_bin",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794769166395,
+      "tag": "0019_share_slugs",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794769524195,
+      "tag": "0020_consultants",
+      "breakpoints": true
     }
   ]
 }

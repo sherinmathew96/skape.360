@@ -38,13 +38,16 @@ export function checkSlug(slug: string): string | null {
   return null;
 }
 
-/** Is this address already used by another portal or a firm? */
+/** Is this address already used by another portal, a firm, or a shared group or drawing? */
 export async function slugTaken(slug: string, except: { portalId?: string; firmId?: string } = {}) {
   const db = await getDb();
   const [portal] = await db.select({ id: s.clientPortals.id }).from(s.clientPortals).where(eq(s.clientPortals.slug, slug));
   if (portal && portal.id !== except.portalId) return true;
   const [firm] = await db.select({ id: s.firms.id }).from(s.firms).where(and(eq(s.firms.slug, slug), isNull(s.firms.deletedAt)));
-  return Boolean(firm && firm.id !== except.firmId);
+  if (firm && firm.id !== except.firmId) return true;
+  const [group] = await db.select({ id: s.drawingGroups.id }).from(s.drawingGroups).where(eq(s.drawingGroups.shareSlug, slug));
+  const [drawing] = await db.select({ id: s.drawings.id }).from(s.drawings).where(eq(s.drawings.shareSlug, slug));
+  return Boolean(group || drawing);
 }
 
 export const firmCookieName = (firmId: string) => `skape_firm_${firmId.replaceAll("-", "")}`;
@@ -88,6 +91,7 @@ export const loadPortal = cache(async (rawSlug: string) => {
       location: s.projects.location,
       startDate: s.projects.startDate,
       dueDate: s.projects.dueDate,
+      consultants: s.projects.consultants,
       clientName: s.clients.name,
       firmId: s.firms.id,
       firmSlug: s.firms.slug,

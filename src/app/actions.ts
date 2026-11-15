@@ -93,6 +93,17 @@ const projectInput = z.object({
   firmId: z.union([uuid, z.literal("")]).default(""),
 });
 
+/** The consultant rows from a project form: role and name, empty rows dropped. */
+function consultantsFrom(formData: FormData) {
+  const roles = formData.getAll("consultantRole").map((v) => String(v).trim().slice(0, 40));
+  const names = formData.getAll("consultantName").map((v) => String(v).trim().slice(0, 80));
+  return names
+    .map((name, i) => ({ role: roles[i] ?? "", name }))
+    .filter((c) => c.name)
+    .map((c) => ({ role: c.role || "Consultant", name: c.name }))
+    .slice(0, 10);
+}
+
 export async function createProject(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requirePermission("projects.create");
   const parsed = projectInput.safeParse(Object.fromEntries(formData));
@@ -139,6 +150,7 @@ export async function createProject(_: FormState, formData: FormData): Promise<F
         dueDate: input.dueDate,
         leadId: input.leadId,
         firmId: input.firmId || null,
+        consultants: consultantsFrom(formData),
         createdBy: user.id,
       })
       .returning({ id: s.projects.id });
@@ -211,6 +223,7 @@ export async function updateProject(_: FormState, formData: FormData): Promise<F
         leadId: v.leadId,
         status: v.status,
         firmId: v.firmId || null,
+        consultants: consultantsFrom(formData),
       })
       .where(eq(s.projects.id, projectId));
     await tx.update(s.clients).set({ name: v.clientName, phone: v.clientPhone || null }).where(eq(s.clients.id, project.clientId));

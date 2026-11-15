@@ -12,6 +12,8 @@ import { can } from "@/lib/permissions";
 import { STATUS_STYLE } from "@/components/drawing-status";
 import { notifyClient } from "@/lib/client-updates";
 import { recordApproval } from "@/lib/decisions";
+import { appOrigin } from "@/lib/origin";
+import { ensureShareSlug, portalSlugFor } from "@/lib/share-slugs";
 import { storedSize } from "@/lib/storage";
 import type { FormState } from "./actions";
 
@@ -408,4 +410,29 @@ export async function deleteDrawing(formData: FormData) {
   await audit(user, "delete", "drawing", drawing.id, { title: drawing.title });
   refresh(project.id);
   redirect(`/projects/${project.id}/drawings`);
+}
+
+/**
+ * The link to share one group or one drawing with the client:
+ * 360.studioskape.in/<its name>. It opens behind the project's client
+ * portal passcode, so the project needs a portal.
+ */
+export async function shareLink(input: { projectId: string; kind: string; id: string }): Promise<{ url: string } | { error: string }> {
+  try {
+    const { project } = await requireStudio(input.projectId);
+    const kind = z.enum(["group", "drawing"]).parse(input.kind);
+    const portalSlug = await portalSlugFor(project.id);
+    if (!portalSlug) return { error: "Set up the client portal first (the project's Client sharing tab)." };
+    let name: string;
+    if (kind === "group") name = (await requireGroup(project.id, input.id)).name;
+    else {
+      const { drawing } = await requireDrawing(project.id, input.id);
+      if (!drawing.clientVisible) return { error: "This drawing is hidden from the client. Show it on the client's register first." };
+      name = drawing.title;
+    }
+    const slug = await ensureShareSlug(kind, uuid.parse(input.id), name, portalSlug);
+    return { url: `${await appOrigin()}/${slug}` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't make the link." };
+  }
 }

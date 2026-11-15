@@ -7,6 +7,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { Pencil, Trash2, X } from "lucide-react";
 import { deleteGroup, trashDrawing, updateDrawing } from "@/app/drawing-actions";
 import { DISCIPLINES, type Discipline } from "@/db/schema";
+import { ShareButton } from "./share-button";
 
 // ── Removing a group: with its drawings, or just the group ─────────────────
 
@@ -104,6 +105,7 @@ export function DrawingRowActions({
 
   return (
     <span className="flex flex-none items-center justify-end">
+      {drawing.clientVisible ? <ShareButton kind="drawing" id={drawing.id} name={name} projectId={projectId} /> : null}
       <button type="button" className="btn btn-quiet h-8 w-8 p-0 text-muted" aria-label={`Edit ${name}`} title="Edit" onClick={() => setEditing(true)}>
         <Pencil size={14} strokeWidth={1.6} aria-hidden="true" />
       </button>
