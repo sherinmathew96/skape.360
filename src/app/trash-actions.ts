@@ -64,6 +64,7 @@ const itemInput = z.object({ type: z.enum(TRASH_TYPES), id: uuid });
 
 const TABLE = {
   project: s.projects,
+  group: s.drawingGroups,
   drawing: s.drawings,
   model: s.models3d,
   tour: s.tours,
@@ -84,6 +85,18 @@ export async function restoreItem(formData: FormData) {
       .from(s.siteReports)
       .where(and(eq(s.siteReports.projectId, r.projectId), eq(s.siteReports.date, r.date), isNull(s.siteReports.deletedAt)));
     if (n > 0) throw new Error("There is already a report for that day. Delete it first, then restore this one.");
+  }
+  if (type === "group") {
+    // The group comes back with the drawings that went with it.
+    const [grp] = await db.select().from(s.drawingGroups).where(and(eq(s.drawingGroups.id, id), isNotNull(s.drawingGroups.deletedAt)));
+    if (!grp) return;
+    await db.transaction(async (tx) => {
+      await tx.update(s.drawings).set({ deletedAt: null, deletedBy: null }).where(and(eq(s.drawings.groupId, id), eq(s.drawings.deletedAt, grp.deletedAt!)));
+      await tx.update(s.drawingGroups).set({ deletedAt: null, deletedBy: null }).where(eq(s.drawingGroups.id, id));
+    });
+    await audit(user.id, "restore", type, id);
+    revalidatePath("/", "layout");
+    return;
   }
   const table = TABLE[type as TrashType];
   await db.update(table).set({ deletedAt: null, deletedBy: null }).where(and(eq(table.id, id), isNotNull(table.deletedAt)));

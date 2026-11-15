@@ -4,7 +4,7 @@ import { Mark } from "@/components/mark";
 import { PortalBell } from "@/components/portal-bell";
 import { PortalTabs, type PortalTab } from "@/components/portal-tabs";
 import { portalUnread } from "@/lib/client-updates";
-import { hasFirmAccess, loadPortal, portalContent } from "@/lib/portal";
+import { loadPortal, portalContent } from "@/lib/portal";
 
 /** The client's dashboard: the project's name on top, then a tab for each part the studio shares. */
 export default async function PortalInside({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
@@ -15,9 +15,6 @@ export default async function PortalInside({ children, params }: { children: Rea
   const [{ models, tours, siteUpdates, progress }, unread] = await Promise.all([portalContent(portal), portalUnread(portal)]);
   const base = `/${portal.slug}`;
   const on = portal.sections;
-  const viaFirm =
-    portal.firmId !== null &&
-    (await hasFirmAccess({ id: portal.firmId, slug: portal.firmSlug!, enabled: portal.firmEnabled!, passcodeHash: portal.firmPasscodeHash }));
 
   const tabs: PortalTab[] = [
     { href: `${base}/overview`, label: "Overview" },
@@ -38,13 +35,7 @@ export default async function PortalInside({ children, params }: { children: Rea
               <span className="truncate font-medium">{portal.projectName}</span>
             </Link>
             <div className="flex flex-none items-center gap-3">
-              {viaFirm ? (
-                <Link href={`/${portal.firmSlug}`} className="hidden text-sm font-medium text-primary hover:underline sm:inline">
-                  All {portal.firmName} projects
-                </Link>
-              ) : (
-                <span className="hidden text-xs text-muted sm:inline">Studio Skape</span>
-              )}
+              <span className="hidden text-xs text-muted sm:inline">Studio Skape</span>
               <PortalBell href={`${base}/updates`} unread={unread} />
             </div>
           </div>

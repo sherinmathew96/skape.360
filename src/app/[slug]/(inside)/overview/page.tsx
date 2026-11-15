@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Box, Orbit } from "lucide-react";
+import { ArrowRight, Orbit } from "lucide-react";
 import { STATUS_ORDER, STATUS_STYLE, StatusChip } from "@/components/drawing-status";
 import { ProgressRing } from "@/components/works-charts";
 import { loadPortal, portalContent } from "@/lib/portal";
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PortalOverview({ params }: Props) {
   const { portal } = await loadPortal((await params).slug);
   if (!portal) notFound();
-  const { models, tours, register, siteUpdates, progress } = await portalContent(portal);
+  const { tours, register, siteUpdates, progress } = await portalContent(portal);
   const base = `/${portal.slug}`;
   const file = (id: string) => `${base}/f/${id}`;
   const on = portal.sections;
@@ -28,7 +28,6 @@ export default async function PortalOverview({ params }: Props) {
   const counts = STATUS_ORDER.map((st) => ({ st, n: drawings.filter((d) => d.status === st).length })).filter((c) => c.n > 0);
   const latest = siteUpdates[0];
   const visuals = [
-    ...(on.models ? models.map((m) => ({ key: m.id, href: `${base}/3d#m-${m.id}`, title: m.title, kind: "3D model", image: m.coverFileId ? file(m.coverFileId) : null, icon: Box })) : []),
     ...(on.tours
       ? tours.map((t) => ({ key: t.id, href: `${base}/360#t-${t.id}`, title: t.title, kind: `360° · ${t.scenes.length} ${t.scenes.length === 1 ? "room" : "rooms"}`, image: file(t.scenes[0].fileId), icon: Orbit }))
       : []),

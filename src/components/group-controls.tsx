@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
-import { deleteGroup, moveDrawing, moveGroup, renameGroup } from "@/app/drawing-actions";
+import { ArrowDown, ArrowUp, Pencil } from "lucide-react";
+import { moveDrawing, moveGroup, renameGroup } from "@/app/drawing-actions";
+import { DeleteGroupButton } from "./register-controls";
 
 const icon = "btn btn-quiet h-8 w-8 p-0 text-muted";
 
 /** Rename, reorder and remove a register group. */
-export function GroupControls({ projectId, groupId, name, first, last }: { projectId: string; groupId: string; name: string; first: boolean; last: boolean }) {
+export function GroupControls({ projectId, groupId, name, count, first, last }: { projectId: string; groupId: string; name: string; count: number; first: boolean; last: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const run = (work: () => Promise<unknown>) => start(async () => { await work(); router.refresh(); });
@@ -33,18 +34,7 @@ export function GroupControls({ projectId, groupId, name, first, last }: { proje
       >
         <Pencil size={15} strokeWidth={1.5} aria-hidden="true" />
       </button>
-      <button
-        type="button"
-        className={`${icon} hover:text-negative`}
-        disabled={pending}
-        aria-label={`Remove the group ${name}`}
-        title="Remove group"
-        onClick={() => {
-          if (window.confirm(`Remove the group “${name}”? Its drawings move to General; nothing is deleted.`)) run(() => deleteGroup({ projectId, groupId }));
-        }}
-      >
-        <Trash2 size={15} strokeWidth={1.5} aria-hidden="true" />
-      </button>
+      <DeleteGroupButton projectId={projectId} groupId={groupId} name={name} count={count} />
     </span>
   );
 }

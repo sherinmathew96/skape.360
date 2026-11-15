@@ -342,7 +342,7 @@ export const DISCIPLINES = ["architectural", "structural", "mep", "interior", "l
 export type Discipline = (typeof DISCIPLINES)[number];
 
 /** Where a drawing stands in the studio's workflow: the status column clients follow. */
-export const DRAWING_STATUSES = ["design_discussion", "pending", "revision", "production", "on_hold", "completed"] as const;
+export const DRAWING_STATUSES = ["design_discussion", "pending", "revision", "on_review", "approved", "production", "on_hold", "completed"] as const;
 export type DrawingStatus = (typeof DRAWING_STATUSES)[number];
 
 /** A heading in a project's drawing register: "General drawings", "Room 01", "Master bedroom" … */
@@ -356,6 +356,9 @@ export const drawingGroups = pgTable(
     name: text("name").notNull(),
     position: integer("position").notNull(),
     createdAt: createdAt(),
+    /** In the recycle bin since (with its drawings); null when not deleted */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => [index("drawing_groups_project_idx").on(t.projectId, t.position)],
 );

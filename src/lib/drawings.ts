@@ -119,7 +119,7 @@ export async function listGroups(projectId: string) {
   return db
     .select({ id: s.drawingGroups.id, name: s.drawingGroups.name, position: s.drawingGroups.position })
     .from(s.drawingGroups)
-    .where(eq(s.drawingGroups.projectId, projectId))
+    .where(and(eq(s.drawingGroups.projectId, projectId), isNull(s.drawingGroups.deletedAt)))
     .orderBy(asc(s.drawingGroups.position), asc(s.drawingGroups.createdAt));
 }
 

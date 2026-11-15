@@ -7,6 +7,7 @@ import { STATUS_ORDER, StatusChip } from "@/components/drawing-status";
 import { GroupControls, RowOrder } from "@/components/group-controls";
 import { DrawingVisualsButton } from "@/components/drawing-visuals";
 import { ProjectHeader } from "@/components/project-header";
+import { DrawingRowActions, GroupCard } from "@/components/register-controls";
 import { requireUser } from "@/lib/auth";
 import { isProjectMember, visibleProject } from "@/lib/data";
 import { DISCIPLINE_LABEL, groupRegister, listDrawings, listGroups, projectTeam, revLabel } from "@/lib/drawings";
@@ -73,18 +74,20 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
           ) : (
             sections.map((section) => {
               const gi = section.id ? groupIds.indexOf(section.id) : -1;
-              const headingId = `group-${section.id ?? "general"}`;
               return (
-                <section key={section.id ?? "general"} className="card" aria-labelledby={headingId}>
-                  <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-3">
-                    <h2 id={headingId} className="card-title min-w-0 truncate">
-                      {section.name}
-                      <span className="ml-2 text-sm font-normal text-muted">{section.drawings.length}</span>
-                    </h2>
-                    {edit && section.id ? (
-                      <GroupControls projectId={project.id} groupId={section.id} name={section.name} first={gi === 0} last={gi === groupIds.length - 1} />
-                    ) : null}
-                  </div>
+                <GroupCard
+                  key={section.id ?? "general"}
+                  projectId={project.id}
+                  groupKey={section.id ?? "general"}
+                  name={section.name}
+                  count={section.drawings.length}
+                  startOpen={sections.length === 1}
+                  controls={
+                    edit && section.id ? (
+                      <GroupControls projectId={project.id} groupId={section.id} name={section.name} count={section.drawings.length} first={gi === 0} last={gi === groupIds.length - 1} />
+                    ) : null
+                  }
+                >
                   {section.drawings.length === 0 ? (
                     <p className="border-t border-rule px-5 py-3 text-muted">No drawings in this group yet.</p>
                   ) : (
@@ -92,7 +95,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                       <div
                         aria-hidden="true"
                         className={`hidden gap-x-3 border-t border-rule px-5 py-2 text-xs text-muted md:grid ${
-                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
+                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_64px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_64px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                         }`}
                       >
                         {edit ? <span /> : null}
@@ -101,6 +104,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                         <span>Status</span>
                         <span>3D · 360° · Renders</span>
                         <span className="hidden text-right xl:block">Updated</span>
+                        {edit ? <span /> : null}
                       </div>
                       <ul>
                         {section.drawings.map((d, i) => {
@@ -110,7 +114,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               key={d.id}
                               className={`grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 ${
                                 edit
-                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px]"
+                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_64px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_64px]"
                                   : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
                               }`}
                             >
@@ -157,13 +161,24 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                                 />
                               </span>
                               <span className="num hidden text-right text-xs text-muted xl:block">{dateFmt.format(d.statusChangedAt)}</span>
+                              {edit ? (
+                                <span className="col-start-2 md:col-start-auto">
+                                  <DrawingRowActions
+                                    projectId={project.id}
+                                    drawing={{ id: d.id, title: d.title, number: d.number, groupId: d.groupId, discipline: d.discipline, assigneeId: d.assigneeId, clientVisible: d.clientVisible }}
+                                    groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+                                    team={team}
+                                    disciplineLabel={DISCIPLINE_LABEL}
+                                  />
+                                </span>
+                              ) : null}
                             </li>
                           );
                         })}
                       </ul>
                     </>
                   )}
-                </section>
+                </GroupCard>
               );
             })
           )}

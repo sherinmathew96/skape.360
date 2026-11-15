@@ -9,11 +9,12 @@ import { deleteStoredWithCopies } from "./storage";
  * report or firm only marks it (deleted_at). It can be restored until the
  * studio's retention period ends; then it and its files are removed for good.
  */
-export const TRASH_TYPES = ["project", "drawing", "model", "tour", "report", "firm"] as const;
+export const TRASH_TYPES = ["project", "group", "drawing", "model", "tour", "report", "firm"] as const;
 export type TrashType = (typeof TRASH_TYPES)[number];
 
 export const TRASH_LABEL: Record<TrashType, string> = {
   project: "Project",
+  group: "Drawing group",
   drawing: "Drawing",
   model: "3D model",
   tour: "360° tour",
@@ -44,18 +45,33 @@ export async function listTrash(): Promise<TrashItem[]> {
   const p = alias(s.projects, "parent");
   const pick = <T extends { deletedAt: Date | null }>(rows: T[]) => rows.filter((r): r is T & { deletedAt: Date } => r.deletedAt !== null);
 
-  const [projects, drawings, models, tours, reports, firms] = await Promise.all([
+  const g = alias(s.drawingGroups, "grp");
+  const [projects, groups, drawings, models, tours, reports, firms] = await Promise.all([
     db
       .select({ id: s.projects.id, title: s.projects.name, projectName: sql<string | null>`null`, deletedAt: s.projects.deletedAt, deletedByName: by.name })
       .from(s.projects)
       .leftJoin(by, eq(by.id, s.projects.deletedBy))
       .where(isNotNull(s.projects.deletedAt)),
     db
+      .select({
+        id: s.drawingGroups.id,
+        title: sql<string>`${s.drawingGroups.name} || ' (' || (select count(*) from ${s.drawings} d where d.group_id = ${s.drawingGroups.id} and d.deleted_at is not null) || ' drawings)'`,
+        projectName: p.name,
+        deletedAt: s.drawingGroups.deletedAt,
+        deletedByName: by.name,
+      })
+      .from(s.drawingGroups)
+      .innerJoin(p, eq(p.id, s.drawingGroups.projectId))
+      .leftJoin(by, eq(by.id, s.drawingGroups.deletedBy))
+      .where(isNotNull(s.drawingGroups.deletedAt)),
+    // Drawings binned with their group are listed under the group, not one by one.
+    db
       .select({ id: s.drawings.id, title: s.drawings.title, projectName: p.name, deletedAt: s.drawings.deletedAt, deletedByName: by.name })
       .from(s.drawings)
       .innerJoin(p, eq(p.id, s.drawings.projectId))
       .leftJoin(by, eq(by.id, s.drawings.deletedBy))
-      .where(isNotNull(s.drawings.deletedAt)),
+      .leftJoin(g, eq(g.id, s.drawings.groupId))
+      .where(and(isNotNull(s.drawings.deletedAt), sql`${g.deletedAt} is null`)),
     db
       .select({ id: s.models3d.id, title: s.models3d.title, projectName: p.name, deletedAt: s.models3d.deletedAt, deletedByName: by.name })
       .from(s.models3d)
@@ -83,6 +99,7 @@ export async function listTrash(): Promise<TrashItem[]> {
 
   const all: TrashItem[] = [
     ...pick(projects).map((r) => ({ ...r, type: "project" as const })),
+    ...pick(groups).map((r) => ({ ...r, type: "group" as const })),
     ...pick(drawings).map((r) => ({ ...r, type: "drawing" as const })),
     ...pick(models).map((r) => ({ ...r, type: "model" as const })),
     ...pick(tours).map((r) => ({ ...r, type: "tour" as const })),
@@ -110,6 +127,14 @@ async function dropShareItems(type: "drawing" | "model" | "tour", id: string) {
 /** Removes one item and its files for good. Returns false when it was not in the bin. */
 export async function purgeItem(type: TrashType, id: string): Promise<boolean> {
   const db = await getDb();
+  if (type === "group") {
+    const [grp] = await db.select({ id: s.drawingGroups.id }).from(s.drawingGroups).where(and(eq(s.drawingGroups.id, id), isNotNull(s.drawingGroups.deletedAt)));
+    if (!grp) return false;
+    const binned = await db.select({ id: s.drawings.id }).from(s.drawings).where(and(eq(s.drawings.groupId, id), isNotNull(s.drawings.deletedAt)));
+    for (const d of binned) await purgeItem("drawing", d.id);
+    await db.delete(s.drawingGroups).where(eq(s.drawingGroups.id, id)); // any drawings still in use move to General
+    return true;
+  }
   if (type === "drawing") {
     const [d] = await db.select({ id: s.drawings.id }).from(s.drawings).where(and(eq(s.drawings.id, id), isNotNull(s.drawings.deletedAt)));
     if (!d) return false;
@@ -170,6 +195,7 @@ export async function purgeExpired() {
   const db = await getDb();
   const expired = (
     await Promise.all([
+      db.select({ id: s.drawingGroups.id }).from(s.drawingGroups).where(lt(s.drawingGroups.deletedAt, cutoff)).then((r) => r.map((x) => ({ type: "group" as const, id: x.id }))),
       db.select({ id: s.drawings.id }).from(s.drawings).where(lt(s.drawings.deletedAt, cutoff)).then((r) => r.map((x) => ({ type: "drawing" as const, id: x.id }))),
       db.select({ id: s.models3d.id }).from(s.models3d).where(lt(s.models3d.deletedAt, cutoff)).then((r) => r.map((x) => ({ type: "model" as const, id: x.id }))),
       db.select({ id: s.tours.id }).from(s.tours).where(lt(s.tours.deletedAt, cutoff)).then((r) => r.map((x) => ({ type: "tour" as const, id: x.id }))),

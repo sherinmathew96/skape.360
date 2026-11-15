@@ -67,7 +67,7 @@ async function requireGroup(projectId: string, groupId: string) {
   const [group] = await db
     .select()
     .from(s.drawingGroups)
-    .where(and(eq(s.drawingGroups.id, uuid.parse(groupId)), eq(s.drawingGroups.projectId, projectId)));
+    .where(and(eq(s.drawingGroups.id, uuid.parse(groupId)), eq(s.drawingGroups.projectId, projectId), isNull(s.drawingGroups.deletedAt)));
   if (!group) throw new Error("That group was not found.");
   return group;
 }
@@ -104,12 +104,39 @@ export async function renameGroup(input: { projectId: string; groupId: string; n
 }
 
 /** Removes the heading only; its drawings move to General. */
-export async function deleteGroup(input: { projectId: string; groupId: string }) {
+/**
+ * Removes a group. With its drawings: the group and its drawings go to the
+ * recycle bin together (and come back together). Without: only the group
+ * goes; its drawings move to General.
+ */
+export async function deleteGroup(input: { projectId: string; groupId: string; withDrawings?: boolean }) {
   const { user, project } = await requireStudio(input.projectId);
   const group = await requireGroup(project.id, input.groupId);
   const db = await getDb();
-  await db.delete(s.drawingGroups).where(eq(s.drawingGroups.id, group.id));
-  await audit(user, "delete", "drawing_group", group.id, { name: group.name });
+  if (input.withDrawings) {
+    const at = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(s.drawingGroups).set({ deletedAt: at, deletedBy: user.id }).where(eq(s.drawingGroups.id, group.id));
+      await tx
+        .update(s.drawings)
+        .set({ deletedAt: at, deletedBy: user.id })
+        .where(and(eq(s.drawings.groupId, group.id), isNull(s.drawings.deletedAt)));
+    });
+    await audit(user, "delete", "drawing_group", group.id, { name: group.name, withDrawings: true });
+  } else {
+    await db.update(s.drawings).set({ groupId: null }).where(eq(s.drawings.groupId, group.id));
+    await db.delete(s.drawingGroups).where(eq(s.drawingGroups.id, group.id));
+    await audit(user, "delete", "drawing_group", group.id, { name: group.name });
+  }
+  refresh(project.id);
+}
+
+/** A drawing to the recycle bin from the register (stays on the list page). */
+export async function trashDrawing(input: { projectId: string; drawingId: string }) {
+  const { user, project, drawing } = await requireDrawing(input.projectId, input.drawingId);
+  const db = await getDb();
+  await db.update(s.drawings).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(s.drawings.id, drawing.id));
+  await audit(user, "delete", "drawing", drawing.id, { title: drawing.title });
   refresh(project.id);
 }
 
@@ -117,7 +144,11 @@ export async function moveGroup(input: { projectId: string; groupId: string; dir
   const { project } = await requireStudio(input.projectId);
   const group = await requireGroup(project.id, input.groupId);
   const db = await getDb();
-  const all = await db.select().from(s.drawingGroups).where(eq(s.drawingGroups.projectId, project.id)).orderBy(s.drawingGroups.position, s.drawingGroups.createdAt);
+  const all = await db
+    .select()
+    .from(s.drawingGroups)
+    .where(and(eq(s.drawingGroups.projectId, project.id), isNull(s.drawingGroups.deletedAt)))
+    .orderBy(s.drawingGroups.position, s.drawingGroups.createdAt);
   const i = all.findIndex((g) => g.id === group.id);
   const j = input.direction === "up" ? i - 1 : i + 1;
   if (j < 0 || j >= all.length) return;

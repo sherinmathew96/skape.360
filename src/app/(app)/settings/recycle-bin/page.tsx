@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Box, Building2, ClipboardList, FileText, FolderKanban, Orbit, RotateCcw } from "lucide-react";
+import { Box, Building2, ClipboardList, FileText, Folder, FolderKanban, Orbit, RotateCcw } from "lucide-react";
 import { purgeNow, restoreItem } from "@/app/trash-actions";
 import { ConfirmButton } from "@/components/confirm-button";
 import { SettingsHeader } from "@/components/settings-header";
@@ -12,6 +12,7 @@ export const metadata: Metadata = { title: "Recycle bin" };
 
 const ICON: Record<TrashType, typeof Box> = {
   project: FolderKanban,
+  group: Folder,
   drawing: FileText,
   model: Box,
   tour: Orbit,
@@ -70,7 +71,7 @@ export default async function RecycleBinPage() {
                     <form action={purgeNow}>
                       <input type="hidden" name="type" value={item.type} />
                       <input type="hidden" name="id" value={item.id} />
-                      <ConfirmButton message={`Delete “${item.title}” for good? ${item.type === "project" ? "Everything in the project and all its files go too. " : ""}This can't be undone.`}>
+                      <ConfirmButton message={`Delete “${item.title}” for good? ${item.type === "project" ? "Everything in the project and all its files go too. " : item.type === "group" ? "Its drawings and their files go too. " : ""}This can't be undone.`}>
                         Delete for good
                       </ConfirmButton>
                     </form>

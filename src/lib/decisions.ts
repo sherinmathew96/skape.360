@@ -17,8 +17,8 @@ export async function latestIssued(drawingId: string) {
 
 /**
  * Records the client's decision on a revision, whether staff typed it in or
- * the client gave it on their portal. Approval moves the drawing to
- * production; a change request moves it back to revision (unless completed).
+ * the client gave it on their portal. Approval marks the drawing approved;
+ * a change request moves it back to revision (unless completed).
  */
 export async function recordApproval(input: {
   revisionId: string;
@@ -43,6 +43,6 @@ export async function recordApproval(input: {
   });
   await db
     .update(s.drawings)
-    .set({ status: input.decision === "approved" ? "production" : "revision", statusChangedAt: sql`now()` })
+    .set({ status: input.decision === "approved" ? "approved" : "revision", statusChangedAt: sql`now()` })
     .where(and(eq(s.drawings.id, input.drawingId), sql`${s.drawings.status} <> 'completed'`));
 }

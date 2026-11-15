@@ -127,6 +127,13 @@
       "when": 1794765466650,
       "tag": "0017_client_conversation",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794767361594,
+      "tag": "0018_group_bin",
+      "breakpoints": true
     }
   ]
 }
