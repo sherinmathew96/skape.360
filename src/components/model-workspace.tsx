@@ -9,6 +9,28 @@ import { formatBytes } from "@/lib/file-kinds";
 import { uploadFile } from "@/lib/upload-client";
 import { ModelViewer, type ViewerApi } from "./model-viewer";
 
+/** The middle of a still, cut to the cards' 4:3 shape and at most 1200 px wide. */
+async function toCardThumb(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const target = 4 / 3;
+  let w = bitmap.width;
+  let h = bitmap.height;
+  if (w / h > target) w = Math.round(h * target);
+  else h = Math.round(w / target);
+  const sx = Math.round((bitmap.width - w) / 2);
+  const sy = Math.round((bitmap.height - h) / 2);
+  const scale = Math.min(1, 1200 / w);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, sx, sy, w, h, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't make the thumbnail."))), "image/jpeg", 0.88));
+}
+
 /**
  * The model page for studio staff: the viewer, plus the controls that set how
  * clients will see it (front, lighting, cover) and the one-time optimisation.
@@ -104,22 +126,6 @@ export function ModelWorkspace({
             >
               <Compass size={16} strokeWidth={1.5} aria-hidden="true" /> Use this direction as Front
             </button>
-            <button
-              type="button"
-              disabled={!api || busy}
-              className="btn btn-secondary"
-              onClick={() =>
-                run("Making the cover…", async () => {
-                  const blob = await api!.snapshot();
-                  if (!blob) throw new Error("Wait for the model to load first.");
-                  const fileId = await uploadFile(projectId, "cover", new File([blob], `${title}-cover.jpg`, { type: "image/jpeg" }));
-                  await setModelCover({ projectId, modelId, fileId });
-                  return "Cover saved. Clients see it while the model loads.";
-                })
-              }
-            >
-              <ImageIcon size={16} strokeWidth={1.5} aria-hidden="true" /> Use this view as cover
-            </button>
             {!optimized ? (
               <button type="button" disabled={busy} className="btn btn-secondary" onClick={optimise}>
                 <Zap size={16} strokeWidth={1.5} aria-hidden="true" /> Optimise for fast loading ({formatBytes(size)})
@@ -127,6 +133,43 @@ export function ModelWorkspace({
             ) : null}
           </div>
           <p aria-live="polite" className={`mt-3 min-h-5 ${status?.error ? "text-negative" : "text-muted"}`}>{status?.text ?? ""}</p>
+        </section>
+      ) : null}
+
+      {canManage ? (
+        <section className="card p-5" aria-labelledby="thumb-title">
+          <h2 id="thumb-title" className="card-title mb-1">Thumbnail</h2>
+          <p className="mb-4 text-muted">Turn and zoom the model above to the view you like, then set it. It shows on this model&rsquo;s card in the studio and on the client&rsquo;s 3D models page.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="relative flex aspect-[4/3] w-40 flex-none items-center justify-center overflow-hidden rounded-lg border border-rule bg-gradient-to-br from-[#f6f7fb] to-[#eceefa]">
+              {poster ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`${poster}?w=640`} alt={`Thumbnail of ${title}`} width={160} height={120} className="h-full w-full object-cover" />
+              ) : (
+                <span className="px-3 text-center text-xs text-muted">No thumbnail yet</span>
+              )}
+            </span>
+            <div className="min-w-0 flex-1 basis-56">
+              <button
+                type="button"
+                disabled={!api || busy}
+                className="btn btn-primary"
+                onClick={() =>
+                  run("Making the thumbnail…", async () => {
+                    const blob = await api!.snapshot();
+                    if (!blob) throw new Error("Wait for the model to load first.");
+                    const thumb = await toCardThumb(blob);
+                    const fileId = await uploadFile(projectId, "cover", new File([thumb], `${title}-thumbnail.jpg`, { type: "image/jpeg" }));
+                    await setModelCover({ projectId, modelId, fileId });
+                    return "Thumbnail set. It now shows on the model's cards.";
+                  })
+                }
+              >
+                <ImageIcon size={16} strokeWidth={1.5} aria-hidden="true" /> {poster ? "Set this view as the new thumbnail" : "Set this view as thumbnail"}
+              </button>
+              <p className="mt-2 text-xs text-muted">The middle of the view is used, in the cards&rsquo; 4:3 shape. Clients also see it while the model loads.</p>
+            </div>
+          </div>
         </section>
       ) : null}
     </div>

@@ -1,10 +1,13 @@
-/** The SKAPE360 mark: a wall corner on plan, closed by a door swing. */
+/** The Studio Skape mark: the K of SKAPE, white on a dark rounded square. */
 export function Mark({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="flex-none">
-      <rect width="64" height="64" rx="12" fill="#141414" />
-      <path d="M18 46V18h28" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="square" />
-      <path d="M18 46h14a14 14 0 0 0 14-14V18" fill="none" stroke="#6ea3ee" strokeWidth="4" strokeLinecap="square" />
+    <svg width={size} height={size} viewBox="0 0 1932 1932" aria-hidden="true" className="flex-none">
+      <rect width="1932" height="1932" rx="180" fill="#1b1b1b" />
+      <g fill="#ffffff">
+        <path d="M318 307h413a12 12 0 0 1 12 12v846l-6 17L307 752V319a12 12 0 0 1 11-12z" />
+        <path d="M1200 307h413a11 11 0 0 1 11 11v418a12 12 0 0 1-8 11L762 1182l-14-17 442-847a12 12 0 0 1 10-11z" />
+        <path d="M318 1185h1295a11 11 0 0 1 11 11v418a11 11 0 0 1-11 11H978l-233-233v233H318a11 11 0 0 1-11-11v-418a11 11 0 0 1 11-11z" />
+      </g>
     </svg>
   );
 }

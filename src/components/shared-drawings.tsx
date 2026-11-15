@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { unlockPortal } from "@/app/portal-actions";
 import { ActionForm } from "@/components/action-form";
@@ -25,9 +24,7 @@ export async function SharedDrawings({ shared, slug }: { shared: Shared; slug: s
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/studio-skape-logo.png" alt="Studio Skape" width={61} height={24} className="h-6 w-auto flex-none" />
         <span className="h-6 w-px flex-none bg-border" aria-hidden="true" />
-        <Link href={`/${portal.slug}`} className="min-w-0 flex-1 truncate font-semibold tracking-[-0.01em] hover:text-primary">
-          {portal.projectName}
-        </Link>
+        <span className="min-w-0 flex-1 truncate font-semibold tracking-[-0.01em]">{portal.projectName}</span>
       </div>
     </header>
   );
@@ -69,9 +66,6 @@ export async function SharedDrawings({ shared, slug }: { shared: Shared; slug: s
         <div className="mb-6">
           <p className="text-sm text-muted">{shared.kind === "group" ? "Drawings" : groups[0].name}</p>
           <h1 className="text-2xl font-bold leading-8 tracking-[-0.01em]">{shared.name}</h1>
-          <Link href={`/${portal.slug}/drawings`} className="mt-1 inline-block text-sm font-medium text-primary hover:underline">
-            See all drawings of {portal.projectName}
-          </Link>
         </div>
         <ClientRegister openAll register={groups} fileBase={`/${portal.slug}/f/`} slug={portal.slug} initialId={shared.kind === "drawing" ? shared.id : undefined} />
       </main>

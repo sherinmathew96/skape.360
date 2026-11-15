@@ -33,7 +33,14 @@ export default async function ModelsPage({ params }: { params: Promise<{ id: str
               {models.map((m) => (
                 <li key={m.id} className="border-t border-rule first:border-t-0">
                   <Link href={`/projects/${project.id}/models/${m.id}`} className="flex min-h-14 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-ground">
-                    <Box size={18} strokeWidth={1.5} className="flex-none text-muted" aria-hidden="true" />
+                    <span className="flex h-12 w-16 flex-none items-center justify-center overflow-hidden rounded-md border border-rule bg-gradient-to-br from-[#f6f7fb] to-[#eceefa]">
+                      {m.coverFileId ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/api/files/${m.coverFileId}?w=320`} alt="" width={64} height={48} loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <Box size={18} strokeWidth={1.5} className="text-muted" aria-hidden="true" />
+                      )}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{m.title}</p>
                       <p className="truncate text-xs leading-4 text-muted">
