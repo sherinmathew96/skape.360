@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { EyeOff, FileText, MessageSquare } from "lucide-react";
 import { NewDrawing, StatusSelect } from "@/components/drawing-upload";
 import { STATUS_ORDER, StatusChip } from "@/components/drawing-status";
-import { GroupControls, RowOrder } from "@/components/group-controls";
+import { GroupControls } from "@/components/group-controls";
+import { SortableDrawings } from "@/components/sortable-drawings";
 import { DrawingVisualsButton } from "@/components/drawing-visuals";
 import { ProjectHeader } from "@/components/project-header";
 import { DrawingRowActions, GroupCard } from "@/components/register-controls";
@@ -99,7 +100,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                       <div
                         aria-hidden="true"
                         className={`hidden gap-x-3 border-t border-rule px-5 py-2 text-xs text-muted md:grid ${
-                          edit ? "grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_56px_96px]" : "grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]"
+                          edit ? "grid-cols-[88px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[88px_minmax(0,1fr)_36px_150px_104px_56px_96px]" : "grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]"
                         }`}
                       >
                         {edit ? <span /> : null}
@@ -110,82 +111,87 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                         <span className="hidden text-right 2xl:block">Updated</span>
                         {edit ? <span /> : null}
                       </div>
-                      <ul>
-                        {section.drawings.map((d, i) => {
+                      {(() => {
+                        const items = section.drawings.map((d) => {
                           const name = d.number ? `${d.number} ${d.title}` : d.title;
-                          return (
-                            <li
-                              key={d.id}
-                              className={`grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 ${
-                                edit
-                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_56px_96px]"
-                                  : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]"
-                              }`}
-                            >
-                              {edit ? (
-                                <RowOrder projectId={project.id} drawingId={d.id} title={d.title} first={i === 0} last={i === section.drawings.length - 1} />
-                              ) : null}
-                              <Link href={`/projects/${project.id}/drawings/${d.id}`} className="group flex min-w-0 gap-2">
-                                {/* Serial number is the row's place in the group, so it stays 1, 2, 3 after a move. */}
-                                <span className="num w-6 flex-none text-right text-sm leading-5 text-muted">{i + 1}</span>
-                                <span className="min-w-0 flex-1">
-                                <span className="line-clamp-2 break-words font-medium leading-5 group-hover:underline" title={name}>
-                                  {d.number ? <span className="mr-1.5 font-mono text-xs font-normal text-muted">{d.number}</span> : null}
-                                  {d.title}
-                                </span>
-                                <span className="flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted">
-                                  {d.latest ? <FileText size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Has a drawing file" /> : null}
-                                  {!d.clientVisible ? <EyeOff size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Hidden from clients" /> : null}
-                                  {waiting.get(d.id) ? (
-                                    <span className="num inline-flex flex-none items-center gap-1 rounded-full bg-[#fdebdc] px-1.5 py-0.5 text-[11px] font-medium text-[#7a3608]" title="Client comments waiting for a reply">
-                                      <MessageSquare size={11} strokeWidth={2} aria-hidden="true" />
-                                      {waiting.get(d.id)}
-                                      <span className="sr-only"> client comments waiting for a reply</span>
-                                    </span>
-                                  ) : null}
-                                  <span className="min-w-0 truncate">
-                                  {DISCIPLINE_LABEL[d.discipline]}
-                                  {d.assigneeName ? ` · ${d.assigneeName}` : ""}
-                                  <span className="md:hidden">
-                                    {" · "}
-                                    {d.latest ? revLabel(d.latest.rev) : "No file"} · {dateFmt.format(d.statusChangedAt)}
+                          return {
+                            id: d.id,
+                            title: d.title,
+                            cells: (
+                              <>
+                                <Link href={`/projects/${project.id}/drawings/${d.id}`} className="group flex min-w-0 gap-2">
+                                  {/* Serial number is the row's place in the group (a CSS counter), so it stays 1, 2, 3 after a move. */}
+                                  <span className="num w-6 flex-none text-right text-sm leading-5 text-muted before:content-[counter(row)]" aria-hidden="true" />
+                                  <span className="min-w-0 flex-1">
+                                  <span className="line-clamp-2 break-words font-medium leading-5 group-hover:underline" title={name}>
+                                    {d.number ? <span className="mr-1.5 font-mono text-xs font-normal text-muted">{d.number}</span> : null}
+                                    {d.title}
                                   </span>
+                                  <span className="flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted">
+                                    {d.latest ? <FileText size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Has a drawing file" /> : null}
+                                    {!d.clientVisible ? <EyeOff size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Hidden from clients" /> : null}
+                                    {waiting.get(d.id) ? (
+                                      <span className="num inline-flex flex-none items-center gap-1 rounded-full bg-[#fdebdc] px-1.5 py-0.5 text-[11px] font-medium text-[#7a3608]" title="Client comments waiting for a reply">
+                                        <MessageSquare size={11} strokeWidth={2} aria-hidden="true" />
+                                        {waiting.get(d.id)}
+                                        <span className="sr-only"> client comments waiting for a reply</span>
+                                      </span>
+                                    ) : null}
+                                    <span className="min-w-0 truncate">
+                                    {DISCIPLINE_LABEL[d.discipline]}
+                                    {d.assigneeName ? ` · ${d.assigneeName}` : ""}
+                                    <span className="md:hidden">
+                                      {" · "}
+                                      {d.latest ? revLabel(d.latest.rev) : "No file"} · {dateFmt.format(d.statusChangedAt)}
+                                    </span>
+                                  </span>
+                                  </span>
+                                  </span>
+                                </Link>
+                                <span className="num hidden text-right font-mono text-xs md:block">{d.latest ? revLabel(d.latest.rev) : "–"}</span>
+                                <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
+                                  {edit ? <StatusSelect key={d.status} projectId={project.id} drawingId={d.id} status={d.status} label={name} /> : <StatusChip status={d.status} />}
                                 </span>
-                                </span>
-                                </span>
-                              </Link>
-                              <span className="num hidden text-right font-mono text-xs md:block">{d.latest ? revLabel(d.latest.rev) : "–"}</span>
-                              <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
-                                {edit ? <StatusSelect key={d.status} projectId={project.id} drawingId={d.id} status={d.status} label={name} /> : <StatusChip status={d.status} />}
-                              </span>
-                              <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
-                                <DrawingVisualsButton
-                                  projectId={project.id}
-                                  drawing={{ id: d.id, title: name }}
-                                  models={(visuals.get(d.id) ?? NO_VISUALS).models.map((m) => ({ id: m.id, title: m.title }))}
-                                  tours={(visuals.get(d.id) ?? NO_VISUALS).tours.map((x) => ({ id: x.id, title: x.title, scenes: x.scenes.length }))}
-                                  renders={(visuals.get(d.id) ?? NO_VISUALS).renders}
-                                  allModels={allModels.map((m) => ({ id: m.id, title: m.title }))}
-                                  allTours={allTours.filter((x) => x.scenes > 0).map((x) => ({ id: x.id, title: x.title }))}
-                                  canEdit={studio}
-                                />
-                              </span>
-                              <span className="num hidden text-right text-xs text-muted 2xl:block">{dateFmt.format(d.statusChangedAt)}</span>
-                              {edit ? (
-                                <span className="col-start-2 md:col-start-auto">
-                                  <DrawingRowActions
+                                <span className={`min-w-0 ${edit ? "col-start-2 md:col-start-auto" : ""}`}>
+                                  <DrawingVisualsButton
                                     projectId={project.id}
-                                    drawing={{ id: d.id, title: d.title, number: d.number, groupId: d.groupId, discipline: d.discipline, assigneeId: d.assigneeId, clientVisible: d.clientVisible }}
-                                    groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-                                    team={team}
-                                    disciplineLabel={DISCIPLINE_LABEL}
+                                    drawing={{ id: d.id, title: name }}
+                                    models={(visuals.get(d.id) ?? NO_VISUALS).models.map((m) => ({ id: m.id, title: m.title }))}
+                                    tours={(visuals.get(d.id) ?? NO_VISUALS).tours.map((x) => ({ id: x.id, title: x.title, scenes: x.scenes.length }))}
+                                    renders={(visuals.get(d.id) ?? NO_VISUALS).renders}
+                                    allModels={allModels.map((m) => ({ id: m.id, title: m.title }))}
+                                    allTours={allTours.filter((x) => x.scenes > 0).map((x) => ({ id: x.id, title: x.title }))}
+                                    canEdit={studio}
                                   />
                                 </span>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
+                                <span className="num hidden text-right text-xs text-muted 2xl:block">{dateFmt.format(d.statusChangedAt)}</span>
+                                {edit ? (
+                                  <span className="col-start-2 md:col-start-auto">
+                                    <DrawingRowActions
+                                      projectId={project.id}
+                                      drawing={{ id: d.id, title: d.title, number: d.number, groupId: d.groupId, discipline: d.discipline, assigneeId: d.assigneeId, clientVisible: d.clientVisible }}
+                                      groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+                                      team={team}
+                                      disciplineLabel={DISCIPLINE_LABEL}
+                                    />
+                                  </span>
+                                ) : null}
+                              </>
+                            ),
+                          };
+                        });
+                        return edit ? (
+                          <SortableDrawings projectId={project.id} rowClass="grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 [counter-increment:row] grid-cols-[88px_minmax(0,1fr)] md:grid-cols-[88px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[88px_minmax(0,1fr)_36px_150px_104px_56px_96px]" items={items} />
+                        ) : (
+                          <ul className="[counter-reset:row]">
+                            {items.map((it) => (
+                              <li key={it.id} className="grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 [counter-increment:row] grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]">
+                                {it.cells}
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
                     </>
                   )}
                 </GroupCard>

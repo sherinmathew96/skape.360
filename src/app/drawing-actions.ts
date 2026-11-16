@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "@/lib/live";
 import { redirect } from "next/navigation";
-import { and, desc, eq, isNull, max, min } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, max, min } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
 import { DECISIONS, DISCIPLINES, DRAWING_STATUSES } from "@/db/schema";
@@ -330,6 +330,24 @@ export async function moveDrawing(input: { projectId: string; drawingId: string;
   [siblings[i], siblings[j]] = [siblings[j], siblings[i]];
   await db.transaction(async (tx) => {
     for (const [position, d] of siblings.entries()) await tx.update(s.drawings).set({ position }).where(eq(s.drawings.id, d.id));
+  });
+  refresh(project.id);
+}
+
+/** Saves a group's drawings in the order they were dragged into. */
+export async function reorderDrawings(input: { projectId: string; ids: string[] }) {
+  if (input.ids.length === 0) return;
+  const { project } = await requireDrawing(input.projectId, input.ids[0]);
+  const db = await getDb();
+  // Only this project's drawings: ids from anywhere else are ignored.
+  const rows = await db
+    .select({ id: s.drawings.id })
+    .from(s.drawings)
+    .where(and(eq(s.drawings.projectId, project.id), inArray(s.drawings.id, input.ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500))));
+  const ok = new Set(rows.map((r) => r.id));
+  const ids = input.ids.filter((id) => ok.has(id));
+  await db.transaction(async (tx) => {
+    for (const [position, id] of ids.entries()) await tx.update(s.drawings).set({ position }).where(eq(s.drawings.id, id));
   });
   refresh(project.id);
 }
