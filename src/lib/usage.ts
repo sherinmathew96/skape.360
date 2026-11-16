@@ -37,6 +37,8 @@ const KIND_LABEL: Record<string, string> = {
   drawing: "Drawings",
   photo: "Photos",
   receipt: "Receipts and bills",
+  render: "Renders",
+  cover: "Cover images",
 };
 
 /** What file storage holds: every object in the bucket, grouped by kind. */
@@ -55,7 +57,9 @@ export async function storageUsage() {
       // projects/<project>/<kind>/<file> or studio/<kind>/<file>
       const parts = o.key.split("/");
       const kind = parts[0] === "projects" ? parts[2] : parts[1];
-      add(kind ?? "other", KIND_LABEL[kind ?? ""] ?? "Other files", o.size);
+      // Folders without a name of their own all count as one "Other files" group.
+      const known = kind && KIND_LABEL[kind] ? kind : null;
+      add(known ?? "other", known ? KIND_LABEL[known] : "Other files", o.size);
     }
   }
   return {
@@ -100,17 +104,30 @@ export async function vercelUsage(): Promise<VercelUsage> {
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  const q = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
-  if (process.env.VERCEL_TEAM_ID) q.set("teamId", process.env.VERCEL_TEAM_ID);
-  try {
-    const res = await fetch(`https://api.vercel.com/v1/billing/charges?${q}`, {
+  const ask = (teamId?: string) => {
+    const q = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+    if (teamId) q.set("teamId", teamId.trim());
+    return fetch(`https://api.vercel.com/v1/billing/charges?${q}`, {
       headers: { Authorization: `Bearer ${token}` },
       // Billing data moves daily: no need to ask Vercel on every visit.
       next: { revalidate: 600 },
     });
+  };
+  try {
+    let res = await ask(process.env.VERCEL_TEAM_ID);
+    // A team id the token doesn't know: try the token's own account.
+    if (res.status === 404 && process.env.VERCEL_TEAM_ID) res = await ask();
     if (!res.ok) {
-      const why = res.status === 401 || res.status === 403 ? "the token can't read billing for this account" : `Vercel answered ${res.status}`;
-      return { state: "error", message: why };
+      // Vercel says why in { error: { code, message } }.
+      const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+      const said = body?.error?.message ?? body?.error?.code;
+      const why =
+        res.status === 401 || res.status === 403
+          ? "the token can't read billing for this account"
+          : res.status === 404
+            ? "Vercel has no billing data for this account (billing data may only be available on paid plans)"
+            : `Vercel answered ${res.status}`;
+      return { state: "error", message: said ? `${why}. Vercel says: ${said}` : why };
     }
     const byService = new Map<string, { name: string; unit: string | null; quantity: number; cost: number }>();
     let cost = 0;
