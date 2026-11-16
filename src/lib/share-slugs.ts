@@ -59,6 +59,13 @@ export async function findShared(slug: string) {
   return null;
 }
 
+/** A project's name, for link previews. */
+export async function projectName(projectId: string) {
+  const db = await getDb();
+  const [p] = await db.select({ name: s.projects.name }).from(s.projects).where(eq(s.projects.id, projectId));
+  return p?.name ?? null;
+}
+
 /** The project's client portal address, if it has an open one. */
 export async function portalSlugFor(projectId: string) {
   const db = await getDb();

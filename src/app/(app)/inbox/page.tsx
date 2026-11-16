@@ -8,7 +8,7 @@ import { inboxSeenAt, studioInbox } from "@/lib/comments";
 export const metadata: Metadata = { title: "Client inbox" };
 
 const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
-const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const timeFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
 /** Client comments and approvals from every portal the person can see, newest first. */
 export default async function InboxPage() {

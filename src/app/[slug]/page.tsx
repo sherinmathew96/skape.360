@@ -9,7 +9,7 @@ import { firmProjects, loadFirm, logFirmView } from "@/lib/firms";
 import { loadPortal, logPortalView } from "@/lib/portal";
 import { PROJECT_TYPE_LABEL } from "@/lib/stages";
 import { SharedDrawings } from "@/components/shared-drawings";
-import { findShared } from "@/lib/share-slugs";
+import { findShared, projectName } from "@/lib/share-slugs";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -21,8 +21,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { portal } = await loadPortal(slug);
   const firm = portal ? null : (await loadFirm(slug)).firm;
   const shared = portal || firm ? null : await findShared(slug);
+  // A shared drawing or group names its project too: "Work Area Counter · Z3 Villa · Studio Skape".
+  const project = shared ? await projectName(shared.projectId) : null;
+  const sharedTitle = shared ? [shared.name, project, "Studio Skape"].filter(Boolean).join(" · ") : null;
   return {
-    title: { absolute: portal ? `${portal.projectName} · Studio Skape` : firm ? `${firm.name} · Studio Skape` : shared ? `${shared.name} · Studio Skape` : "Studio Skape" },
+    title: { absolute: portal ? `${portal.projectName} · Studio Skape` : firm ? `${firm.name} · Studio Skape` : sharedTitle ?? "Studio Skape" },
+    // No app tagline under shared links: the title says what it is.
+    description: null,
     robots: { index: false, follow: false },
     referrer: "no-referrer",
   };

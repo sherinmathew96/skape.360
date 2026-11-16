@@ -10,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 const ICON = { revision: FileText, status: Flag, model: Box, tour: Orbit, render: ImageIcon, site: HardHat, work: CheckCircle2, reply: MessageSquare } as const;
 const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
-const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const timeFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { portal } = await loadPortal((await params).slug);
