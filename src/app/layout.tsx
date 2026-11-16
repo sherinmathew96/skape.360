@@ -8,6 +8,10 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: { default: "SKAPE360", template: "%s · SKAPE360" },
   description: "Studio Skape's projects, site work and team in one place.",
+  metadataBase: new URL("https://360.studioskape.in"),
+  // The K mark as the picture in WhatsApp and other link previews.
+  openGraph: { siteName: "Studio Skape", images: [{ url: "/icon-maskable-512.png", width: 512, height: 512, alt: "Studio Skape" }] },
+  twitter: { card: "summary" },
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "SKAPE360", statusBarStyle: "default" },
 };
