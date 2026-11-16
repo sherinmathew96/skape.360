@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Database, HardDrive, Server } from "lucide-react";
+import { Database, ExternalLink, HardDrive, Server } from "lucide-react";
 import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { databaseUsage, formatBytes, storageUsage, vercelUsage } from "@/lib/usage";
+import { databaseUsage, formatBytes, regionName, storageUsage, vercelHosting } from "@/lib/usage";
 
 export const metadata: Metadata = { title: "Usage" };
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
-const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const dayFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const deployFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
 /** A bar against a plan's allowance, so the numbers mean something at a glance. */
 function Meter({ bytes, limit, label }: { bytes: number; limit: number; label: string }) {
@@ -36,7 +35,7 @@ export default async function UsagePage() {
   const [db, files, hosting] = await Promise.all([
     databaseUsage().catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
     storageUsage().catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
-    vercelUsage(),
+    vercelHosting(),
   ]);
 
   return (
@@ -130,45 +129,48 @@ export default async function UsagePage() {
           )}
         </section>
         <section className="card p-6 lg:col-span-2" aria-labelledby="host-title">
-          <div className="mb-5 flex items-center gap-4">
+          <div className="mb-5 flex flex-wrap items-center gap-4">
             <span className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-raised text-text" aria-hidden="true">
               <Server size={22} strokeWidth={1.6} />
             </span>
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 id="host-title" className="card-title">Hosting</h2>
-              <p className="text-xs text-muted">Vercel{hosting.state === "ok" ? `, ${dayFmt.format(hosting.from)} to ${dayFmt.format(hosting.to)}` : ""}</p>
+              <p className="text-xs text-muted">Vercel{hosting.state === "ok" && hosting.plan ? ` · ${hosting.plan[0].toUpperCase()}${hosting.plan.slice(1)} plan` : ""}</p>
             </div>
+            <a href={hosting.state === "ok" ? hosting.usageUrl : "https://vercel.com/dashboard"} target="_blank" rel="noreferrer" className="btn btn-quiet h-9 gap-1.5 px-3 text-sm">
+              Open Vercel usage
+              <ExternalLink size={14} strokeWidth={1.6} aria-hidden="true" />
+            </a>
           </div>
           {hosting.state === "no-token" ? (
             <p className="empty">
               Add a Vercel access token as <code className="font-mono text-xs">VERCEL_API_TOKEN</code> in the project&rsquo;s environment variables on Vercel (and{" "}
-              <code className="font-mono text-xs">VERCEL_TEAM_ID</code> if the project is in a team), then redeploy. This month&rsquo;s use shows here after that.
+              <code className="font-mono text-xs">VERCEL_TEAM_ID</code> if the project is in a team), then redeploy.
             </p>
           ) : hosting.state === "error" ? (
-            <p role="alert" className="empty">Couldn&rsquo;t read Vercel usage: {hosting.message}.</p>
+            <p role="alert" className="empty">Couldn&rsquo;t read Vercel: {hosting.message}.</p>
           ) : (
             <>
               <p className="mb-5 text-sm text-muted">
-                Last 30 days. {hosting.cost > 0 ? `Billed: ${usd.format(hosting.cost)}.` : "All within the free allowance."}
+                {hosting.region ? <>Runs in {regionName(hosting.region)}. </> : null}
+                Function calls, bandwidth and other use against the plan&rsquo;s limits are on Vercel&rsquo;s usage page: Vercel doesn&rsquo;t share those figures with apps on this plan.
               </p>
-              {hosting.services.length === 0 ? (
-                <p className="text-sm text-muted">No use recorded yet.</p>
+              <h3 className="mb-2 text-sm font-semibold">Latest deploys</h3>
+              {hosting.deploysError ? (
+                <p className="text-sm text-muted">Couldn&rsquo;t read deploys: {hosting.deploysError}.</p>
+              ) : hosting.deploys.length === 0 ? (
+                <p className="text-sm text-muted">No deploys to show.</p>
               ) : (
-                <ul className="grid grid-cols-1 gap-x-10 gap-y-4 md:grid-cols-2">
-                  {hosting.services.map((s) => (
-                    <li key={s.name}>
-                      <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate">{s.name}</span>
-                        <span className="num flex-none font-medium">
-                          {s.used}
-                          {s.limit ? <span className="font-normal text-muted"> / {s.limit}</span> : null}
-                        </span>
-                      </div>
-                      {s.pct !== null ? (
-                        <div className="h-1.5 overflow-hidden rounded-full bg-raised" role="img" aria-label={`${Math.round(s.pct)}% of the free allowance`}>
-                          <div className={`h-full rounded-full ${s.pct > 85 ? "bg-negative" : s.pct > 60 ? "bg-[#f0a020]" : "bg-primary"}`} style={{ width: `${Math.max(s.pct, 1)}%` }} />
-                        </div>
-                      ) : null}
+                <ul className="divide-y divide-rule">
+                  {hosting.deploys.map((d) => (
+                    <li key={d.id} className="flex items-center gap-3 py-2.5 text-sm">
+                      <span
+                        className={`h-2 w-2 flex-none rounded-full ${d.state === "READY" ? "bg-[#0f9d76]" : d.state === "ERROR" || d.state === "CANCELED" ? "bg-negative" : "bg-[#f0a020]"}`}
+                        aria-hidden="true"
+                      />
+                      <span className="w-20 flex-none text-xs text-muted">{d.state === "READY" ? "Ready" : d.state === "ERROR" ? "Failed" : d.state[0] + d.state.slice(1).toLowerCase()}</span>
+                      <span className="min-w-0 flex-1 truncate" title={d.message ?? undefined}>{d.message ?? "No message"}</span>
+                      <span className="num flex-none text-xs text-muted">{deployFmt.format(d.at)}</span>
                     </li>
                   ))}
                 </ul>
@@ -178,7 +180,7 @@ export default async function UsagePage() {
         </section>
       </div>
       <p className="mt-4 text-xs text-muted">
-        Plan figures are for reference; check your actual plan in the Supabase, Cloudflare and Vercel dashboards. Vercel figures can trail its dashboard by a few hours.
+        Plan figures are for reference; check your actual plan in the Supabase, Cloudflare and Vercel dashboards.
       </p>
     </div>
   );
