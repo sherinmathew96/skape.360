@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/live";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, count, eq, gt } from "drizzle-orm";

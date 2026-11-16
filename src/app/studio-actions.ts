@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { shortToken } from "@/lib/short-token";
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/live";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, asc, count, eq, gt, isNull, max } from "drizzle-orm";

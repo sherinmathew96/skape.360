@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LiveRefresh } from "@/components/live-refresh";
 import { LogOut, Search } from "lucide-react";
 import { logout } from "@/app/actions";
 import { Avatar } from "@/components/avatar";
@@ -99,6 +100,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <main id="main" className="mx-auto max-w-[1200px] px-4 pb-28 pt-5 md:px-8 md:pb-12 md:pt-6 lg:px-12">
           {children}
+          <LiveRefresh />
         </main>
       </div>
 

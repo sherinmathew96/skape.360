@@ -77,3 +77,58 @@ export function formatBytes(bytes: number) {
   }
   return `${v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 }
+
+export type VercelUsage =
+  | { state: "no-token" }
+  | { state: "error"; message: string }
+  | {
+      state: "ok";
+      from: Date;
+      to: Date;
+      cost: number;
+      services: { name: string; unit: string | null; quantity: number; cost: number }[];
+    };
+
+/**
+ * This month's hosting use from Vercel's billing API (FOCUS charges, one row
+ * per product per day), added up by product. Needs VERCEL_API_TOKEN, and
+ * VERCEL_TEAM_ID when the project sits in a team.
+ */
+export async function vercelUsage(): Promise<VercelUsage> {
+  const token = process.env.VERCEL_API_TOKEN;
+  if (!token) return { state: "no-token" };
+  const now = new Date();
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const q = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+  if (process.env.VERCEL_TEAM_ID) q.set("teamId", process.env.VERCEL_TEAM_ID);
+  try {
+    const res = await fetch(`https://api.vercel.com/v1/billing/charges?${q}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      // Billing data moves daily: no need to ask Vercel on every visit.
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) {
+      const why = res.status === 401 || res.status === 403 ? "the token can't read billing for this account" : `Vercel answered ${res.status}`;
+      return { state: "error", message: why };
+    }
+    const byService = new Map<string, { name: string; unit: string | null; quantity: number; cost: number }>();
+    let cost = 0;
+    for (const line of (await res.text()).split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { ServiceName?: string; ConsumedUnit?: string | null; ConsumedQuantity?: number | string | null; BilledCost?: number | string };
+      const name = row.ServiceName ?? "Other";
+      const unit = row.ConsumedUnit ?? null;
+      const key = `${name}|${unit ?? ""}`;
+      const item = byService.get(key) ?? { name, unit, quantity: 0, cost: 0 };
+      item.quantity += Number(row.ConsumedQuantity ?? 0) || 0;
+      item.cost += Number(row.BilledCost ?? 0) || 0;
+      cost += Number(row.BilledCost ?? 0) || 0;
+      byService.set(key, item);
+    }
+    const services = [...byService.values()].sort((a, b) => b.cost - a.cost || b.quantity - a.quantity);
+    return { state: "ok", from, to: now, cost, services };
+  } catch (e) {
+    return { state: "error", message: e instanceof Error ? e.message : String(e) };
+  }
+}

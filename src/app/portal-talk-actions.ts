@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/live";
 import { cookies } from "next/headers";
 import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import { z } from "zod";

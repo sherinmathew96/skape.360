@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/live";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";

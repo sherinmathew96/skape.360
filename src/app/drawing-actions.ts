@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "@/lib/live";
 import { redirect } from "next/navigation";
 import { and, desc, eq, isNull, max, min } from "drizzle-orm";
 import { z } from "zod";

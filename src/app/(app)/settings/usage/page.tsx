@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Database, HardDrive } from "lucide-react";
+import { Database, HardDrive, Server } from "lucide-react";
 import { SettingsHeader } from "@/components/settings-header";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { databaseUsage, formatBytes, storageUsage } from "@/lib/usage";
+import { databaseUsage, formatBytes, storageUsage, vercelUsage } from "@/lib/usage";
 
 export const metadata: Metadata = { title: "Usage" };
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const qty = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+const dayFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** A bar against a plan's allowance, so the numbers mean something at a glance. */
 function Meter({ bytes, limit, label }: { bytes: number; limit: number; label: string }) {
@@ -31,14 +34,15 @@ function Meter({ bytes, limit, label }: { bytes: number; limit: number; label: s
 export default async function UsagePage() {
   const user = await requireUser();
   if (!can(user, "staff.manage")) redirect("/settings");
-  const [db, files] = await Promise.all([
+  const [db, files, hosting] = await Promise.all([
     databaseUsage().catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
     storageUsage().catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
+    vercelUsage(),
   ]);
 
   return (
     <div className="mx-auto max-w-[1136px]">
-      <SettingsHeader user={user} subtitle="Read live from the database and file storage each time you open this page." />
+      <SettingsHeader user={user} subtitle="Database, file storage and hosting use, read each time you open this page." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <section className="card p-6" aria-labelledby="db-title">
@@ -126,9 +130,59 @@ export default async function UsagePage() {
             </>
           )}
         </section>
+        <section className="card p-6 lg:col-span-2" aria-labelledby="host-title">
+          <div className="mb-5 flex items-center gap-4">
+            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-raised text-text" aria-hidden="true">
+              <Server size={22} strokeWidth={1.6} />
+            </span>
+            <div>
+              <h2 id="host-title" className="card-title">Hosting</h2>
+              <p className="text-xs text-muted">Vercel, this month{hosting.state === "ok" ? ` (from ${dayFmt.format(hosting.from)})` : ""}</p>
+            </div>
+          </div>
+          {hosting.state === "no-token" ? (
+            <p className="empty">
+              Add a Vercel access token as <code className="font-mono text-xs">VERCEL_API_TOKEN</code> in the project&rsquo;s environment variables on Vercel (and{" "}
+              <code className="font-mono text-xs">VERCEL_TEAM_ID</code> if the project is in a team), then redeploy. This month&rsquo;s use shows here after that.
+            </p>
+          ) : hosting.state === "error" ? (
+            <p role="alert" className="empty">Couldn&rsquo;t read Vercel usage: {hosting.message}.</p>
+          ) : (
+            <>
+              <p className="num text-[32px] font-semibold leading-10 tracking-[-0.02em]">{usd.format(hosting.cost)}</p>
+              <p className="mb-5 text-sm text-muted">Billed so far this month. Included allowance shows as $0.00.</p>
+              {hosting.services.length === 0 ? (
+                <p className="text-sm text-muted">No use recorded yet this month.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table text-sm">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="!pl-0">Product</th>
+                        <th scope="col" className="num">Used</th>
+                        <th scope="col" className="num !pr-0">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hosting.services.map((s) => (
+                        <tr key={s.name + (s.unit ?? "")}>
+                          <td className="!pl-0 !py-2.5">{s.name}</td>
+                          <td className="num !py-2.5">
+                            {qty.format(s.quantity)} <span className="text-xs text-muted">{s.unit ?? ""}</span>
+                          </td>
+                          <td className="num !pr-0 !py-2.5">{usd.format(s.cost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       </div>
       <p className="mt-4 text-xs text-muted">
-        Plan figures are for reference; check your actual plan in the Supabase and Cloudflare dashboards. Hosting use (Vercel) is not shown here.
+        Plan figures are for reference; check your actual plan in the Supabase, Cloudflare and Vercel dashboards. Vercel billing figures update about once a day.
       </p>
     </div>
   );

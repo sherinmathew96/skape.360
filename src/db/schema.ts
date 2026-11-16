@@ -1141,3 +1141,13 @@ export const clientUpdates = pgTable(
   },
   (t) => [index("client_updates_project_idx").on(t.projectId, t.createdAt)],
 );
+
+/**
+ * One row whose number goes up on every change made through the app. Open
+ * pages check it every few seconds and refresh when it moves (live updates).
+ */
+export const liveVersion = pgTable("live_version", {
+  id: integer("id").primaryKey(),
+  v: integer("v").notNull().default(0),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
