@@ -62,7 +62,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
         </ul>
       ) : null}
 
-      <div className={`grid grid-cols-1 items-start gap-3 ${edit ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
+      <div className="grid grid-cols-1 items-start gap-3">
         <div className="grid min-w-0 grid-cols-1 gap-3">
           {sections.length === 0 ? (
             <section className="card p-5">
@@ -99,15 +99,15 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                       <div
                         aria-hidden="true"
                         className={`hidden gap-x-3 border-t border-rule px-5 py-2 text-xs text-muted md:grid ${
-                          edit ? "grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_96px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_96px]" : "grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
+                          edit ? "grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_56px_96px]" : "grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]"
                         }`}
                       >
                         {edit ? <span /> : null}
                         <span>Drawing</span>
                         <span className="text-right">Rev</span>
                         <span>Status</span>
-                        <span>3D · 360° · Renders</span>
-                        <span className="hidden text-right xl:block">Updated</span>
+                        <span>Visuals</span>
+                        <span className="hidden text-right 2xl:block">Updated</span>
                         {edit ? <span /> : null}
                       </div>
                       <ul>
@@ -118,17 +118,19 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               key={d.id}
                               className={`grid items-center gap-x-3 gap-y-2 border-t border-rule px-5 py-2.5 ${
                                 edit
-                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_96px] xl:grid-cols-[56px_minmax(0,1fr)_44px_190px_120px_56px_96px]"
-                                  : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_44px_190px_120px] xl:grid-cols-[minmax(0,1fr)_44px_190px_120px_56px]"
+                                  ? "grid-cols-[56px_minmax(0,1fr)] md:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_96px] 2xl:grid-cols-[56px_minmax(0,1fr)_36px_150px_104px_56px_96px]"
+                                  : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_36px_150px_104px] 2xl:grid-cols-[minmax(0,1fr)_36px_150px_104px_56px]"
                               }`}
                             >
                               {edit ? (
                                 <RowOrder projectId={project.id} drawingId={d.id} title={d.title} first={i === 0} last={i === section.drawings.length - 1} />
                               ) : null}
                               <Link href={`/projects/${project.id}/drawings/${d.id}`} className="group min-w-0">
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  {d.number ? <span className="flex-none font-mono text-xs text-muted">{d.number}</span> : null}
-                                  <span className="truncate font-medium group-hover:underline">{d.title}</span>
+                                <span className="line-clamp-2 break-words font-medium leading-5 group-hover:underline" title={name}>
+                                  {d.number ? <span className="mr-1.5 font-mono text-xs font-normal text-muted">{d.number}</span> : null}
+                                  {d.title}
+                                </span>
+                                <span className="flex min-w-0 items-center gap-1.5 text-xs leading-4 text-muted">
                                   {d.latest ? <FileText size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Has a drawing file" /> : null}
                                   {!d.clientVisible ? <EyeOff size={14} strokeWidth={1.5} className="flex-none text-muted" aria-label="Hidden from clients" /> : null}
                                   {waiting.get(d.id) ? (
@@ -138,14 +140,14 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                                       <span className="sr-only"> client comments waiting for a reply</span>
                                     </span>
                                   ) : null}
-                                </span>
-                                <span className="block truncate text-xs leading-4 text-muted">
+                                  <span className="min-w-0 truncate">
                                   {DISCIPLINE_LABEL[d.discipline]}
                                   {d.assigneeName ? ` · ${d.assigneeName}` : ""}
                                   <span className="md:hidden">
                                     {" · "}
                                     {d.latest ? revLabel(d.latest.rev) : "No file"} · {dateFmt.format(d.statusChangedAt)}
                                   </span>
+                                </span>
                                 </span>
                               </Link>
                               <span className="num hidden text-right font-mono text-xs md:block">{d.latest ? revLabel(d.latest.rev) : "–"}</span>
@@ -164,7 +166,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                                   canEdit={studio}
                                 />
                               </span>
-                              <span className="num hidden text-right text-xs text-muted xl:block">{dateFmt.format(d.statusChangedAt)}</span>
+                              <span className="num hidden text-right text-xs text-muted 2xl:block">{dateFmt.format(d.statusChangedAt)}</span>
                               {edit ? (
                                 <span className="col-start-2 md:col-start-auto">
                                   <DrawingRowActions
@@ -195,7 +197,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
         </div>
 
         {edit ? (
-          <section className="card p-5 lg:sticky lg:top-4" aria-labelledby="new-drawing-title">
+          <section className="card p-5" aria-labelledby="new-drawing-title">
             <h2 id="new-drawing-title" className="card-title mb-4">Add a drawing</h2>
             <NewDrawing projectId={project.id} groups={groups} team={team} />
           </section>
