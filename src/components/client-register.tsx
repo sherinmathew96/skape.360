@@ -38,7 +38,7 @@ export function ClientRegister({
   slug?: string;
   /** Opens this drawing straight away */
   initialId?: string;
-  /** With it: its comments, 3D model, 360° view or renders */
+  /** With it: its comments, 3D model, 360Â° view or renders */
   initialView?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -74,6 +74,7 @@ export function ClientRegister({
   // The order the viewer steps through: what's on screen, drawings with a file only.
   const viewable = shownGroups.flatMap((g) => g.drawings).filter((d) => d.revision);
   const all = register.flatMap((g) => g.drawings);
+  const serial = useMemo(() => new Map(register.flatMap((g) => g.drawings.map((d, i) => [d.id, i + 1] as const))), [register]);
   const open = all.find((d) => d.id === openId) ?? null;
   const at = open ? viewable.findIndex((d) => d.id === open.id) : -1;
   const counts = STATUS_ORDER.map((st) => ({ st, n: all.filter((d) => d.status === st).length })).filter((c) => c.n > 0);
@@ -162,7 +163,7 @@ export function ClientRegister({
               <ul>
                 {g.drawings.map((d) => (
                   <li key={d.id} className="border-t border-rule">
-                    <DrawingRow drawing={d} slug={slug} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
+                    <DrawingRow drawing={d} serial={serial.get(d.id) ?? 0} slug={slug} onOpen={() => setOpenId(d.id)} onVisual={(kind) => setVisual({ id: d.id, kind })} />
                   </li>
                 ))}
               </ul>
@@ -190,7 +191,7 @@ export function ClientRegister({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-lg font-semibold tracking-[-0.01em]">{open.title}</p>
                 <p className="num truncate text-xs text-muted">
-                  {[open.number, `R${open.revision.rev}`, `issued ${dateFmt.format(open.revision.issuedAt ?? open.revision.createdAt)}`].filter(Boolean).join(" · ")}
+                  {[open.number, `R${open.revision.rev}`, `issued ${dateFmt.format(open.revision.issuedAt ?? open.revision.createdAt)}`].filter(Boolean).join(" Â· ")}
                 </p>
               </div>
               <StatusChip status={open.status} />
@@ -253,26 +254,27 @@ export function ClientRegister({
 
 /**
  * One drawing as a row: name, sheet, revision, issue date, status, then its
- * 3D, 360° and renders. The name side opens the current revision.
+ * 3D, 360Â° and renders. The name side opens the current revision.
  */
-function DrawingRow({ drawing: d, slug, onOpen, onVisual }: { drawing: Drawing; slug?: string; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
+function DrawingRow({ drawing: d, serial, slug, onOpen, onVisual }: { drawing: Drawing; serial: number; slug?: string; onOpen: () => void; onVisual: (kind: VisualKind) => void }) {
   const showVisuals = Boolean(slug);
   const issued = d.revision ? dateFmt.format(d.revision.issuedAt ?? d.revision.createdAt) : null;
   const info = (
     <>
       <span className="flex min-w-0 items-center gap-3">
-        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#f6f7fb] text-[#9197b3]" aria-hidden="true">
+        <span className="num w-6 flex-none text-right text-sm text-muted">{serial}</span>
+        <span className="hidden h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#f6f7fb] text-[#9197b3] md:flex" aria-hidden="true">
           <FileText size={18} strokeWidth={1.5} />
         </span>
         <span className="min-w-0">
-          <span className={`block truncate font-medium ${d.revision ? "group-hover:text-primary" : ""}`}>{d.title}</span>
+          <span className={`block break-words font-medium leading-5 md:line-clamp-2 ${d.revision ? "group-hover:text-primary" : ""}`}>{d.title}</span>
           {/* On phones the details sit under the name. */}
           <span className="num block truncate text-xs text-muted md:hidden">
-            {[d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" · ")}
+            {[d.revision ? `R${d.revision.rev}` : "Not issued yet", issued].filter(Boolean).join(" Â· ")}
           </span>
         </span>
       </span>
-      <span className="num hidden font-mono text-xs md:block">{d.revision ? `R${d.revision.rev}` : "–"}</span>
+      <span className="num hidden font-mono text-xs md:block">{d.revision ? `R${d.revision.rev}` : "â€“"}</span>
       <span className="num hidden text-sm text-muted md:block">{issued ?? "Not issued"}</span>
     </>
   );

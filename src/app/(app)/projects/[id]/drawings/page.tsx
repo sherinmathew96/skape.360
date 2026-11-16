@@ -125,7 +125,10 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                               {edit ? (
                                 <RowOrder projectId={project.id} drawingId={d.id} title={d.title} first={i === 0} last={i === section.drawings.length - 1} />
                               ) : null}
-                              <Link href={`/projects/${project.id}/drawings/${d.id}`} className="group min-w-0">
+                              <Link href={`/projects/${project.id}/drawings/${d.id}`} className="group flex min-w-0 gap-2">
+                                {/* Serial number is the row's place in the group, so it stays 1, 2, 3 after a move. */}
+                                <span className="num w-6 flex-none text-right text-sm leading-5 text-muted">{i + 1}</span>
+                                <span className="min-w-0 flex-1">
                                 <span className="line-clamp-2 break-words font-medium leading-5 group-hover:underline" title={name}>
                                   {d.number ? <span className="mr-1.5 font-mono text-xs font-normal text-muted">{d.number}</span> : null}
                                   {d.title}
@@ -147,6 +150,7 @@ export default async function DrawingsPage({ params }: { params: Promise<{ id: s
                                     {" · "}
                                     {d.latest ? revLabel(d.latest.rev) : "No file"} · {dateFmt.format(d.statusChangedAt)}
                                   </span>
+                                </span>
                                 </span>
                                 </span>
                               </Link>

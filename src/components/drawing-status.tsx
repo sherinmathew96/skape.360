@@ -10,7 +10,7 @@ export const STATUS_STYLE: Record<DrawingStatus, { label: string; dot: string; b
   revision: { label: "Revision", dot: "#e8916b", bg: "#fdeee6", ink: "#7d3517" },
   on_review: { label: "On review", dot: "#7c5cff", bg: "#f1edff", ink: "#4a2fb8" },
   approved: { label: "Approved", dot: "#0f9d76", bg: "#e3f6ef", ink: "#0b5e47" },
-  production: { label: "Production", dot: "#3b7d2e", bg: "#e2f0dc", ink: "#1f4a16" },
+  production: { label: "Production", dot: "#c0398a", bg: "#fbe7f2", ink: "#7a1f56" },
   on_hold: { label: "On hold", dot: "#2f55a4", bg: "#e3eaf7", ink: "#1d3770" },
   completed: { label: "Completed", dot: "#8cc278", bg: "#eef7e9", ink: "#2d5a1f" },
 };
