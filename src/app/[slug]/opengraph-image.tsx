@@ -13,7 +13,7 @@ export const contentType = "image/png";
 
 async function names(slug: string): Promise<{ title: string; sub: string | null }> {
   const { portal } = await loadPortal(slug);
-  if (portal) return { title: portal.projectName, sub: "Project drawings and updates" };
+  if (portal) return { title: portal.projectName, sub: portal.location?.trim() || null };
   const { firm } = await loadFirm(slug);
   if (firm) return { title: firm.name, sub: "Projects with Studio Skape" };
   const shared = await findShared(slug);
