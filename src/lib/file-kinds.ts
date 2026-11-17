@@ -25,7 +25,7 @@ export const FILE_KINDS = {
     contentTypes: ["application/pdf", "image/jpeg", "image/png"],
     storedType: null,
     maxBytes: 80 * 1024 * 1024,
-    help: "A PDF (best) or a JPG/PNG of the sheet, up to 80 MB.",
+    help: "A PDF (best) or a JPG/PNG of the sheet, up to 80 MB. Kept exactly as uploaded, at full print quality.",
   },
   render: {
     label: "render image",

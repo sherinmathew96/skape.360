@@ -54,9 +54,12 @@ export async function compressImage(file: File, kind: FileKind): Promise<File> {
   return new File([blob], name, { type: "image/jpeg", lastModified: file.lastModified });
 }
 
-/** Shrinks an upload before it is sent: images by kind, PDFs losslessly. */
+/** Shrinks an upload before it is sent: images by kind, receipt PDFs too. Drawings are left untouched. */
 export async function compressUpload(file: File, kind: FileKind): Promise<File> {
-  if (kind === "drawing" || kind === "receipt") {
+  // Drawings are printed from the file clients download: keep them exactly as
+  // uploaded, byte for byte. Any re-encoding softens linework and scans.
+  if (kind === "drawing") return file;
+  if (kind === "receipt") {
     const { compressPdf } = await import("./shrink-pdf");
     const pdf = await compressPdf(file);
     if (pdf !== file) return pdf;
