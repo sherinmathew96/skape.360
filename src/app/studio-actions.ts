@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { and, asc, count, eq, gt, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema as s } from "@/db";
-import { LIGHTING, SHARE_ITEM_TYPES, type ModelView } from "@/db/schema";
+import { LIGHTING, SHARE_ITEM_TYPES, type ModelView, type SavedView } from "@/db/schema";
 import { requireProjectMember } from "@/lib/access";
 import { requirePermission, type SessionUser } from "@/lib/auth";
 import { visibleProject } from "@/lib/data";
@@ -183,6 +183,43 @@ export async function saveModelView(input: { projectId: string; modelId: string;
   await db.update(s.models3d).set({ view: { ...model.view, ...view } }).where(eq(s.models3d.id, model.id));
   await audit(user, "update_view", "model", model.id);
   refresh(project.id);
+}
+
+const savedViewInput = z.object({
+  name: z.string().trim().min(1, "Give the view a name.").max(60),
+  orbit: z.string().regex(/^-?[\d.]+deg -?[\d.]+deg [\d.]+m$/),
+  target: z.string().regex(/^-?[\d.]+m -?[\d.]+m -?[\d.]+m$/),
+  fov: z.string().regex(/^[\d.]+deg$/).optional(),
+  cut: z.number().min(0).max(1000).nullable(),
+  hidden: z.array(z.string().max(120)).max(40),
+  explode: z.number().min(0).max(1),
+});
+
+const MAX_SAVED_VIEWS = 24;
+
+/** Stores a named view (plan cut, layers, camera) that the studio and clients can reopen. */
+export async function addSavedView(input: { projectId: string; modelId: string; view: Omit<SavedView, "id"> }) {
+  const { user, project, model } = await requireModel(input.projectId, input.modelId);
+  const parsed = savedViewInput.safeParse(input.view);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "That view could not be saved." };
+  const saved = model.view.saved ?? [];
+  if (saved.length >= MAX_SAVED_VIEWS) return { error: `A model can keep up to ${MAX_SAVED_VIEWS} views. Delete one first.` };
+  const view: SavedView = { id: crypto.randomUUID(), ...parsed.data };
+  const db = await getDb();
+  await db.update(s.models3d).set({ view: { ...model.view, saved: [...saved, view] } }).where(eq(s.models3d.id, model.id));
+  await audit(user, "save_view", "model", model.id, { name: view.name });
+  refresh(project.id);
+  return { ok: true as const, view };
+}
+
+export async function deleteSavedView(input: { projectId: string; modelId: string; viewId: string }) {
+  const { user, project, model } = await requireModel(input.projectId, input.modelId);
+  const saved = (model.view.saved ?? []).filter((v) => v.id !== input.viewId);
+  const db = await getDb();
+  await db.update(s.models3d).set({ view: { ...model.view, saved } }).where(eq(s.models3d.id, model.id));
+  await audit(user, "delete_view", "model", model.id);
+  refresh(project.id);
+  return { ok: true as const };
 }
 
 /** A still of the model, shown while it loads, in lists and in link previews. */

@@ -256,6 +256,23 @@ export type ModelView = {
   exposure?: number;
   /** The camera clients first see: orbit ("30deg 70deg 40m") and target ("1m 2m 3m") */
   opening?: { orbit: string; target: string };
+  /** Named views the studio saved: a plan cut, layers hidden or lifted, and the camera */
+  saved?: SavedView[];
+};
+
+export type SavedView = {
+  id: string;
+  name: string;
+  orbit: string;
+  target: string;
+  /** e.g. "8deg"; absent for the normal lens */
+  fov?: string;
+  /** Plan cut in metres above the model's base; null for none */
+  cut: number | null;
+  /** Layers turned off */
+  hidden: string[];
+  /** 0 = assembled, 1 = fully apart */
+  explode: number;
 };
 
 export const models3d = pgTable(

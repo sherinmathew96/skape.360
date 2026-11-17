@@ -18,6 +18,8 @@ export type OptimizeReport = {
   meshesBefore: number;
   meshesAfter: number;
   texturesResized: number;
+  /** Named groups kept as layers (Plinth, Walls, Roof…); empty when none */
+  layers: string[];
 };
 
 const MAX_TEXTURE = 2048;
@@ -77,6 +79,88 @@ async function toWebp(image: Uint8Array, mime: string): Promise<{ data: Uint8Arr
   }
 }
 
+type GNode = import("@gltf-transform/core").Node;
+type Mat4 = Parameters<GNode["setMatrix"]>[0];
+
+/** a × b for column-major 4×4 matrices (glTF's layout). */
+function multiply(a: readonly number[], b: readonly number[]): Mat4 {
+  const out = new Array<number>(16).fill(0);
+  for (let col = 0; col < 4; col++)
+    for (let row = 0; row < 4; row++)
+      for (let k = 0; k < 4; k++) out[col * 4 + row] += a[k * 4 + row] * b[col * 4 + k];
+  return out as unknown as Mat4;
+}
+
+/** The inverse of a column-major 4×4 matrix (identity if it can't be inverted). */
+function invert(m: readonly number[]): Mat4 {
+  const [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23, a30, a31, a32, a33] = m;
+  const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10;
+  const b03 = a01 * a12 - a02 * a11, b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+  const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30, b08 = a20 * a33 - a23 * a30;
+  const b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+  const det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+  if (!det) return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as unknown as Mat4;
+  const d = 1 / det;
+  return [
+    (a11 * b11 - a12 * b10 + a13 * b09) * d, (a02 * b10 - a01 * b11 - a03 * b09) * d, (a31 * b05 - a32 * b04 + a33 * b03) * d, (a22 * b04 - a21 * b05 - a23 * b03) * d,
+    (a12 * b08 - a10 * b11 - a13 * b07) * d, (a00 * b11 - a02 * b08 + a03 * b07) * d, (a32 * b02 - a30 * b05 - a33 * b01) * d, (a20 * b05 - a22 * b02 + a23 * b01) * d,
+    (a10 * b10 - a11 * b08 + a13 * b06) * d, (a01 * b08 - a00 * b10 - a03 * b06) * d, (a30 * b04 - a31 * b02 + a33 * b00) * d, (a21 * b02 - a20 * b04 - a23 * b00) * d,
+    (a11 * b07 - a10 * b09 - a12 * b06) * d, (a00 * b09 - a01 * b07 + a02 * b06) * d, (a31 * b01 - a30 * b03 - a32 * b00) * d, (a20 * b03 - a21 * b01 + a22 * b00) * d,
+  ] as unknown as Mat4;
+}
+
+/** Names exporters give on their own (Group#12, 3DGeom-1, Component 4…): not layers. */
+const GENERIC_NAME = /^(group|component|componentinstance|instance|3dgeom|geom|geometry|mesh|node|object|assembly|default|scene|root|sketchup|model)?[\s#_.-]*\d*$/i;
+
+/** A part's layer name, or null for an unnamed or exporter-named part. */
+export function layerName(node: GNode): string | null {
+  const name = node.getName().trim();
+  return name && !GENERIC_NAME.test(name) ? name : null;
+}
+
+const hasMesh = (node: GNode): boolean => Boolean(node.getMesh()) || node.listChildren().some(hasMesh);
+
+/**
+ * The model's layers: the first level below any wrapper nodes where two or
+ * more parts carry real names (Plinth, Walls, Roof). Null when there are none.
+ */
+export function findLayers(doc: GltfDocument): GNode[] | null {
+  let level = doc.getRoot().listScenes()[0]?.listChildren() ?? [];
+  for (let depth = 0; depth < 8; depth++) {
+    const parts = level.filter(hasMesh);
+    if (parts.length === 1) {
+      if (parts[0].getMesh()) return null;
+      level = parts[0].listChildren();
+      continue;
+    }
+    const named = parts.filter((p) => layerName(p));
+    return named.length >= 2 && named.length <= 40 ? parts : null;
+  }
+  return null;
+}
+
+/**
+ * Puts every mesh of a layer directly under the layer node, keeping where it
+ * sits in the world, so the layer can be merged within itself but never with
+ * another layer. Unnamed parts stay in the model but are not layers.
+ */
+export function keepLayers(layers: GNode[]) {
+  for (const layer of layers) {
+    if (!layerName(layer)) layer.setName("");
+    const toLayer = invert(layer.getWorldMatrix());
+    const meshes: GNode[] = [];
+    layer.traverse((n) => {
+      if (n !== layer && n.getMesh()) meshes.push(n);
+    });
+    for (const node of meshes) {
+      const local = multiply(toLayer, node.getWorldMatrix());
+      node.getParentNode()?.removeChild(node);
+      node.setMatrix(local).setName("");
+      layer.addChild(node);
+    }
+  }
+}
+
 export async function optimizeModel(file: File, onStep?: (step: string) => void): Promise<{ file: File; report: OptimizeReport }> {
   onStep?.("Loading the optimiser…");
   const [{ WebIO }, ext, fn, mo] = await Promise.all([
@@ -97,15 +181,24 @@ export async function optimizeModel(file: File, onStep?: (step: string) => void)
 
   onStep?.("Merging and compressing geometry…");
   realisticMaterials(doc);
-  await doc.transform(
-    fn.dedup(),
-    // No GPU instancing: the viewer measures instanced parts at the wrong size,
-    // which drops the floor shadow below the model (it looks like it floats).
-    fn.flatten(),
-    fn.join({ keepNamed: false }),
-    fn.weld(),
-    fn.prune(),
-  );
+  const layers = findLayers(doc);
+  if (layers) {
+    // Named groups (Plinth, Walls, Roof…) stay separate so the viewer can show,
+    // hide and lift them; each one is merged within itself.
+    await doc.transform(fn.dedup());
+    keepLayers(layers);
+    await doc.transform(fn.join({ keepNamed: true }), fn.weld(), fn.prune());
+  } else {
+    await doc.transform(
+      fn.dedup(),
+      // No GPU instancing: the viewer measures instanced parts at the wrong size,
+      // which drops the floor shadow below the model (it looks like it floats).
+      fn.flatten(),
+      fn.join({ keepNamed: false }),
+      fn.weld(),
+      fn.prune(),
+    );
+  }
 
   onStep?.("Shrinking textures…");
   let texturesResized = 0;
@@ -136,6 +229,7 @@ export async function optimizeModel(file: File, onStep?: (step: string) => void)
       meshesBefore,
       meshesAfter: doc.getRoot().listMeshes().length,
       texturesResized,
+      layers: [...new Set((layers ?? []).map((l) => layerName(l)).filter((n): n is string => Boolean(n)))],
     },
   };
 }

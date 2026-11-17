@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Box, Camera, Hand, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Undo2, ZoomIn, ZoomOut } from "lucide-react";
-import type { Lighting, ModelView } from "@/db/schema";
+import { Bookmark, Box, Camera, Hand, Layers, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import type { Lighting, ModelView, SavedView } from "@/db/schema";
+import type { SceneTools } from "@/lib/model-scene";
 import { skyUrl } from "@/lib/sky";
 
 declare module "react" {
@@ -23,6 +24,8 @@ type MV = HTMLElement & {
   canActivateAR: boolean;
   activateAR(): void;
   getCameraOrbit(): { theta: number; phi: number; radius: number };
+  getCameraTarget(): { x: number; y: number; z: number };
+  getFieldOfView(): number;
   getDimensions(): { x: number; y: number; z: number };
   jumpCameraToGoal(): void;
   zoom(steps: number): void;
@@ -71,6 +74,8 @@ export function ModelViewer({
   className = "",
   touchAction = "pan-y",
   onApi,
+  onSaveView,
+  onDeleteView,
 }: {
   src: string;
   title: string;
@@ -80,6 +85,9 @@ export function ModelViewer({
   /** "none" when the viewer fills the screen and the page has nothing to scroll. */
   touchAction?: "pan-y" | "none";
   onApi?: (api: ViewerApi) => void;
+  /** Studio only: keep the current cut, layers and camera as a named view. */
+  onSaveView?: (view: Omit<SavedView, "id">) => Promise<{ error?: string; view?: SavedView }>;
+  onDeleteView?: (id: string) => Promise<unknown>;
 }) {
   const ref = useRef<MV>(null);
   const menuId = useId();
@@ -96,6 +104,22 @@ export function ModelViewer({
   const [full, setFull] = useState(false);
   const [dims, setDims] = useState<{ x: number; y: number; z: number } | null>(null);
   const [hint, setHint] = useState(false);
+  // Layers, explode and the plan cut (when the viewer's scene can be reached).
+  const [tools, setTools] = useState<SceneTools | null>(null);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [explode, setExplode] = useState(0);
+  const [cutOn, setCutOn] = useState(false);
+  const [cutH, setCutH] = useState(1.2);
+  const [saved, setSaved] = useState<SavedView[]>(view.saved ?? []);
+  const [viewName, setViewName] = useState("");
+  const [viewNote, setViewNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // New saved views from the server (another person, a refresh): follow them.
+  const [savedKey, setSavedKey] = useState(JSON.stringify(view.saved ?? []));
+  const incomingKey = JSON.stringify(view.saved ?? []);
+  if (incomingKey !== savedKey) {
+    setSavedKey(incomingKey);
+    setSaved(view.saved ?? []);
+  }
   const lighting = LIGHTING;
   const exposure = view.exposure ?? 1;
   const front = view.frontYaw ?? 0;
@@ -132,6 +156,13 @@ export function ModelViewer({
       if (window.matchMedia("(pointer: coarse)").matches) setHint(true);
       setDims(el.getDimensions());
       setCanAR(Boolean(el.canActivateAR));
+      import("@/lib/model-scene")
+        .then((m) => {
+          const tools = m.attachSceneTools(el);
+          setTools(tools);
+          if (tools) setCutH((h) => Math.min(h, tools.height));
+        })
+        .catch(() => setTools(null));
     };
     const onError = () => setFailed(true);
     el.addEventListener("progress", onProgress);
@@ -191,6 +222,79 @@ export function ModelViewer({
     ref.current?.jumpCameraToGoal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  useEffect(() => {
+    tools?.setHidden(hidden);
+  }, [tools, hidden]);
+  useEffect(() => {
+    tools?.setCut(cutOn ? cutH : null);
+    tools?.setExplode(cutOn ? 0 : explode);
+    // The floor shadow ignores hidden, lifted and cut parts: leave it out while they apply.
+    ref.current?.setAttribute("shadow-intensity", cutOn || explode > 0 || hidden.length ? "0" : "1");
+  }, [tools, cutOn, cutH, explode, hidden]);
+  // The cut stays put when the view is panned.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !tools || !cutOn) return;
+    const onMove = () => tools.update();
+    el.addEventListener("camera-change", onMove);
+    return () => el.removeEventListener("camera-change", onMove);
+  }, [tools, cutOn]);
+
+  const planView = () => {
+    setFlat(true);
+    goTo("top", true);
+  };
+
+  const openSaved = (v: SavedView) => {
+    const el = ref.current;
+    if (!el) return;
+    setHidden(v.hidden);
+    setExplode(v.explode);
+    setCutOn(v.cut !== null);
+    if (v.cut !== null) setCutH(v.cut);
+    setSpinning(false);
+    setFlat(Boolean(v.fov));
+    el.minFieldOfView = v.fov ? "1deg" : "10deg";
+    el.maxCameraOrbit = v.fov ? `Infinity ${MAX_PHI} ${Number.parseFloat(v.orbit.split(" ")[2]) * 1.6}m` : `Infinity ${MAX_PHI} auto`;
+    el.fieldOfView = v.fov ?? "auto";
+    (el as unknown as { cameraTarget: string }).cameraTarget = v.target;
+    el.cameraOrbit = v.orbit;
+  };
+
+  const saveCurrent = async () => {
+    const el = ref.current;
+    if (!el || !onSaveView) return;
+    const name = viewName.trim();
+    if (!name) return setViewNote({ text: "Give the view a name.", error: true });
+    const o = el.getCameraOrbit();
+    const tg = el.getCameraTarget();
+    const n = (x: number, d = 2) => Number(x.toFixed(d));
+    const fov = el.getFieldOfView();
+    const res = await onSaveView({
+      name,
+      orbit: `${n(deg(o.theta), 1)}deg ${n(deg(o.phi), 1)}deg ${n(o.radius)}m`,
+      target: `${n(tg.x)}m ${n(tg.y)}m ${n(tg.z)}m`,
+      ...(fov < 9 ? { fov: `${n(fov, 1)}deg` } : {}),
+      cut: cutOn ? n(cutH) : null,
+      hidden,
+      explode: cutOn ? 0 : n(explode),
+    });
+    const made = res.view;
+    if (res.error || !made) return setViewNote({ text: res.error ?? "That view could not be saved.", error: true });
+    setSaved((s) => [...s, made]);
+    setViewName("");
+    setViewNote({ text: `Saved “${made.name}”.` });
+  };
+
+  const removeSaved = async (v: SavedView) => {
+    if (!onDeleteView || !window.confirm(`Delete the view “${v.name}”?`)) return;
+    await onDeleteView(v.id);
+    setSaved((s) => s.filter((x) => x.id !== v.id));
+  };
+
+  const showLayers = Boolean(tools && tools.layers.length >= 2);
+  const fmtM = (m: number) => `${m.toFixed(2)} m`;
 
   const rotate = (by: number) => {
     const el = ref.current;
@@ -334,11 +438,12 @@ export function ModelViewer({
       {hint ? <GestureHint touchAction={touchAction} onDone={() => setHint(false)} /> : null}
 
       {loaded ? (
-        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
+        // Pinned to the viewer's height, so a long menu scrolls inside it rather than spilling over the top.
+        <div className="pointer-events-none absolute bottom-3 right-3 top-3 flex flex-col items-end justify-end gap-2">
           {menu ? (
             <div
               id={menuId}
-              className="max-h-[calc(100cqh-84px)] w-[min(300px,calc(100cqw-24px))] overflow-y-auto rounded-2xl border border-border bg-white p-3 shadow-[0_12px_40px_rgba(41,45,50,0.16)]"
+              className="pointer-events-auto min-h-0 w-[min(300px,calc(100cqw-24px))] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-white p-3 shadow-[0_12px_40px_rgba(41,45,50,0.16)]"
               role="group"
               aria-label="Views and tools"
             >
@@ -370,6 +475,145 @@ export function ModelViewer({
                   className="h-4 w-4"
                 />
               </label>
+
+              {saved.length || onSaveView ? (
+                <>
+                  <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
+                    <Bookmark size={13} strokeWidth={1.8} aria-hidden="true" /> Saved views
+                  </p>
+                  {saved.length ? (
+                    <ul className="grid grid-cols-1 gap-1">
+                      {saved.map((v) => (
+                        <li key={v.id} className="flex items-center gap-1">
+                          <button type="button" onClick={() => openSaved(v)} className="h-10 min-w-0 flex-1 truncate rounded-lg bg-ground px-3 text-left text-sm hover:bg-active hover:text-primary">
+                            {v.name}
+                          </button>
+                          {onDeleteView ? (
+                            <button type="button" onClick={() => removeSaved(v)} aria-label={`Delete the view ${v.name}`} title="Delete view" className="btn btn-quiet h-10 w-9 flex-none p-0 text-muted">
+                              <X size={15} strokeWidth={1.8} aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {onSaveView ? (
+                    <form
+                      className="mt-1 flex gap-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void saveCurrent();
+                      }}
+                    >
+                      <label className="sr-only" htmlFor={`${menuId}-vname`}>
+                        View name
+                      </label>
+                      <input
+                        id={`${menuId}-vname`}
+                        value={viewName}
+                        onChange={(e) => setViewName(e.target.value)}
+                        placeholder="e.g. Ground floor plan"
+                        maxLength={60}
+                        autoComplete="off"
+                        className="input h-10 min-w-0 flex-1 text-sm"
+                      />
+                      <button type="submit" className="btn btn-primary h-10 flex-none px-3 text-sm">
+                        Save view
+                      </button>
+                    </form>
+                  ) : null}
+                  {viewNote ? (
+                    <p role={viewNote.error ? "alert" : "status"} className={`px-1 pt-1 text-xs ${viewNote.error ? "text-negative" : "text-muted"}`}>
+                      {viewNote.text}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {tools ? (
+                <>
+                  <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
+                    <Scissors size={13} strokeWidth={1.8} aria-hidden="true" /> Plan cut
+                  </p>
+                  <label className="flex h-11 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm hover:bg-active">
+                    Cut through the model
+                    <input type="checkbox" checked={cutOn} onChange={(e) => setCutOn(e.target.checked)} className="h-4 w-4" />
+                  </label>
+                  {cutOn ? (
+                    <div className="px-3 pb-1">
+                      <label htmlFor={`${menuId}-cut`} className="flex items-baseline justify-between text-xs text-muted">
+                        Cut height <span className="num text-sm font-medium text-text">{fmtM(cutH)}</span>
+                      </label>
+                      <input
+                        id={`${menuId}-cut`}
+                        type="range"
+                        min={0}
+                        max={tools.height}
+                        step={0.05}
+                        value={cutH}
+                        onChange={(e) => setCutH(Number(e.target.value))}
+                        className="w-full accent-[var(--primary)]"
+                        aria-valuetext={fmtM(cutH)}
+                      />
+                      <button type="button" onClick={planView} className="mt-1 h-10 w-full rounded-lg bg-ground text-sm hover:bg-active hover:text-primary">
+                        Plan view (from above)
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {showLayers ? (
+                    <>
+                      <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
+                        <Layers size={13} strokeWidth={1.8} aria-hidden="true" /> Layers
+                      </p>
+                      <ul className="grid grid-cols-1">
+                        {[...tools.layers].reverse().map((name) => (
+                          <li key={name}>
+                            <label className="flex h-10 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm hover:bg-active">
+                              <span className="min-w-0 truncate">{name}</span>
+                              <input
+                                type="checkbox"
+                                checked={!hidden.includes(name)}
+                                onChange={(e) => setHidden((h) => (e.target.checked ? h.filter((x) => x !== name) : [...h, name]))}
+                                className="h-4 w-4"
+                              />
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="px-3 pb-1 pt-1">
+                        <label htmlFor={`${menuId}-explode`} className="flex items-baseline justify-between text-xs text-muted">
+                          Explode {cutOn ? <span>(off while cutting)</span> : null}
+                        </label>
+                        <input
+                          id={`${menuId}-explode`}
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={explode}
+                          disabled={cutOn}
+                          onChange={(e) => setExplode(Number(e.target.value))}
+                          className="w-full accent-[var(--primary)] disabled:opacity-40"
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  {cutOn || explode > 0 || hidden.length ? (
+                    <button
+                      type="button"
+                      className={item}
+                      onClick={() => {
+                        setCutOn(false);
+                        setExplode(0);
+                        setHidden([]);
+                      }}
+                    >
+                      <Undo2 size={18} strokeWidth={1.6} aria-hidden="true" /> Show the whole model
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
 
               <p className="mt-2 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">Move</p>
               <div className="grid grid-cols-2 gap-x-1">
@@ -419,7 +663,7 @@ export function ModelViewer({
             aria-controls={menuId}
             title={menu ? "Close" : "Views and tools"}
             onClick={() => setMenu((x) => !x)}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[0_8px_24px_rgba(89,50,234,0.35)] transition-[background-color,transform] hover:bg-[var(--primary-hover)] active:scale-95"
+            className="pointer-events-auto flex h-14 w-14 flex-none items-center justify-center rounded-full bg-primary text-white shadow-[0_8px_24px_rgba(89,50,234,0.35)] transition-[background-color,transform] hover:bg-[var(--primary-hover)] active:scale-95"
           >
             <Plus size={26} strokeWidth={2} aria-hidden="true" className={`transition-transform duration-200 motion-reduce:transition-none ${menu ? "rotate-45" : ""}`} />
           </button>

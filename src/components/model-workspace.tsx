@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { Compass, Eye, ImageIcon, Zap } from "lucide-react";
-import { replaceModelFile, saveModelView, setModelCover } from "@/app/studio-actions";
+import { addSavedView, deleteSavedView, replaceModelFile, saveModelView, setModelCover } from "@/app/studio-actions";
 import type { ModelView } from "@/db/schema";
 import { formatBytes } from "@/lib/file-kinds";
 import { uploadFile } from "@/lib/upload-client";
@@ -83,13 +83,23 @@ export function ModelWorkspace({
       if (report.after >= report.before) return "This model is already as small as it gets.";
       const fileId = await uploadFile(projectId, "model", file, (l, t) => setStatus({ text: `Uploading… ${Math.round((l / t) * 100)}%` }));
       await replaceModelFile({ projectId, modelId, fileId });
-      return `Optimised: ${formatBytes(report.before)} to ${formatBytes(report.after)}, ${report.meshesBefore.toLocaleString("en-IN")} pieces to ${report.meshesAfter.toLocaleString("en-IN")}.`;
+      const layerNote = report.layers.length ? ` Layers kept: ${report.layers.join(", ")}.` : "";
+      return `Optimised: ${formatBytes(report.before)} to ${formatBytes(report.after)}, ${report.meshesBefore.toLocaleString("en-IN")} pieces to ${report.meshesAfter.toLocaleString("en-IN")}.${layerNote}`;
     });
 
   return (
     <div className="grid grid-cols-1 gap-3">
       <div className="card overflow-hidden">
-        <ModelViewer src={src} title={title} poster={poster} view={view} onApi={onApi} className="aspect-[4/5] w-full sm:aspect-[4/3] lg:aspect-auto lg:h-[600px]" />
+        <ModelViewer
+          src={src}
+          title={title}
+          poster={poster}
+          view={view}
+          onApi={onApi}
+          onSaveView={canManage ? (v) => addSavedView({ projectId, modelId, view: v }) : undefined}
+          onDeleteView={canManage ? (id) => deleteSavedView({ projectId, modelId, viewId: id }) : undefined}
+          className="aspect-[4/5] w-full sm:aspect-[4/3] lg:aspect-auto lg:h-[600px]"
+        />
       </div>
 
       {canManage ? (
