@@ -17,6 +17,45 @@ export type Db = PgliteDatabase<typeof schema>;
 
 const globalForDb = globalThis as unknown as { __skapeDb?: Promise<Db> };
 
+type PgError = Error & { code?: string };
+
+/** Errors from a dropped or unreachable connection, not from the query itself. */
+function isConnectionError(e: unknown) {
+  const err = e as PgError;
+  const code = err?.code ?? "";
+  return (
+    ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE", "57P01", "57P03", "08000", "08001", "08003", "08004", "08006", "XX000"].includes(code) ||
+    /terminat|timeout|ECONNRESET|DbHandler|Connection ended|socket hang up|server closed the connection/i.test(err?.message ?? "")
+  );
+}
+
+/**
+ * A query sent down a connection the pooler has just dropped fails at once.
+ * Reads are retried once on a fresh connection, so a visitor never sees the
+ * error page for it; writes are retried only when they never reached the
+ * database (it refused or timed out connecting). Every failure is logged on
+ * one line with its real reason, which Vercel's log list shows in full.
+ */
+export function retryDroppedConnections(pool: import("pg").Pool) {
+  const raw = pool.query.bind(pool) as (...args: unknown[]) => Promise<unknown>;
+  const wrapped = async (...args: unknown[]) => {
+    try {
+      return await raw(...args);
+    } catch (e) {
+      const err = e as PgError;
+      const text = typeof args[0] === "string" ? args[0] : ((args[0] as { text?: string })?.text ?? "");
+      const read = /^\s*(select|with)\b/i.test(text);
+      const neverSent = err?.code === "ECONNREFUSED" || /^connect E|timeout exceeded when trying to connect/i.test(err?.message ?? "");
+      const retry = isConnectionError(e) && (read || neverSent);
+      console.error(`[db] ${retry ? "retrying after" : "query failed"}: ${err?.code ?? "-"} ${err?.message ?? String(e)}`);
+      if (!retry) throw e;
+      return await raw(...args);
+    }
+  };
+  // Callback-style calls (not used by the app) go straight through.
+  pool.query = ((...args: unknown[]) => (typeof args[args.length - 1] === "function" ? raw(...args) : wrapped(...args))) as typeof pool.query;
+}
+
 async function connect(): Promise<Db> {
   const url = process.env.DATABASE_URL;
 
@@ -41,6 +80,7 @@ async function connect(): Promise<Db> {
     // A connection dropped while idle must not crash the process.
     pool.on("error", (err) => console.warn("[skape360] idle database connection closed:", err.message));
     attachDatabasePool(pool);
+    retryDroppedConnections(pool);
     return drizzle(pool, { schema }) as unknown as Db;
   }
 
