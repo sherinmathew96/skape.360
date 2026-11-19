@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Bookmark, Box, Camera, DoorOpen, Hand, Layers, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Archive, Bookmark, Box, Camera, DoorOpen, Hand, Layers, Maximize2, Minimize2, Move, MoveHorizontal, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView, SavedView } from "@/db/schema";
-import type { SceneTools, Section } from "@/lib/model-scene";
+import type { PartKind, SceneTools, Section } from "@/lib/model-scene";
 import { skyUrl } from "@/lib/sky";
 
 declare module "react" {
@@ -115,7 +115,9 @@ export function ModelViewer({
   // Doors, drawers and sliding shutters that are open, by number.
   const [open, setOpen] = useState<number[]>([]);
   // Until someone opens a part, a note says they can.
-  const [opened, setOpened] = useState(false);
+  // A small button on the part under the mouse; on touch screens, on every part for a moment.
+  const [hoverPart, setHoverPart] = useState<number | null>(null);
+  const [marks, setMarks] = useState(false);
   const [saved, setSaved] = useState<SavedView[]>(view.saved ?? []);
   const [viewName, setViewName] = useState("");
   const [viewNote, setViewNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -264,7 +266,7 @@ export function ModelViewer({
       setTimeout(() => (viewer.disableTap = false));
       if (e.timeStamp - d.t > 500 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
       setOpen((o) => (o.includes(d.part) ? o.filter((x) => x !== d.part) : [...o, d.part]));
-      setOpened(true);
+      setMarks(false);
     };
     // A pointing hand over parts that open (mouse only, checked a few times a second).
     const surface = el.shadowRoot?.querySelector<HTMLElement>(".userInput") ?? null;
@@ -274,12 +276,15 @@ export function ModelViewer({
     const check = () => {
       timer = 0;
       if (!surface || !at) return;
-      const now = tools.pick(at.x, at.y) !== null;
+      const part = tools.pick(at.x, at.y);
+      const now = part !== null;
       if (now !== over) surface.style.cursor = now ? "pointer" : "grab";
       over = now;
+      setHoverPart(part);
     };
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse" || e.buttons) return;
+      if (e.pointerType !== "mouse") return;
+      if (e.buttons) return setHoverPart(null);
       at = { x: e.clientX, y: e.clientY };
       // Where the mouse is after a short pause, never more than ~10 times a second.
       if (!timer) timer = window.setTimeout(check, 90);
@@ -287,7 +292,13 @@ export function ModelViewer({
     el.addEventListener("pointerdown", onDown, { capture: true });
     el.addEventListener("pointerup", onUp);
     el.addEventListener("pointermove", onMove);
+    const onLeave = () => {
+      at = null;
+      setHoverPart(null);
+    };
+    el.addEventListener("pointerleave", onLeave);
     return () => {
+      el.removeEventListener("pointerleave", onLeave);
       el.removeEventListener("pointerdown", onDown, { capture: true });
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointermove", onMove);
@@ -365,6 +376,21 @@ export function ModelViewer({
     if (!onDeleteView || !window.confirm(`Delete the view “${v.name}”?`)) return;
     await onDeleteView(v.id);
     setSaved((s) => s.filter((x) => x.id !== v.id));
+  };
+
+  // After the gesture card on a touch screen: a moment of buttons on the parts
+  // that open, the first few times on this device only.
+  const afterHint = () => {
+    setHint(false);
+    if (!tools?.movable) return;
+    let seen = 0;
+    try {
+      seen = Number(localStorage.getItem("skape-part-marks")) || 0;
+      localStorage.setItem("skape-part-marks", String(seen + 1));
+    } catch {}
+    if (seen >= 3) return;
+    setMarks(true);
+    window.setTimeout(() => setMarks(false), 5000);
   };
 
   const showLayers = Boolean(tools && tools.layers.length >= 2);
@@ -509,16 +535,10 @@ export function ModelViewer({
         </div>
       ) : null}
 
-      {hint ? <GestureHint touchAction={touchAction} movable={Boolean(tools?.movable)} onDone={() => setHint(false)} /> : null}
+      {hint ? <GestureHint touchAction={touchAction} movable={Boolean(tools?.movable)} onDone={afterHint} /> : null}
 
-      {loaded && tools?.movable && !opened && !hint ? (
-        <p
-          role="note"
-          className="pointer-events-none absolute bottom-3 left-3 flex max-w-[calc(100cqw-96px)] items-center gap-2 rounded-full bg-white/95 py-2 pl-2.5 pr-3.5 text-xs text-text shadow-[0_4px_16px_rgba(41,45,50,0.14)]"
-        >
-          <DoorOpen size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-primary" />
-          Tap a door or drawer to open it
-        </p>
+      {tools?.movable && !hint && (hoverPart !== null || marks) ? (
+        <PartBadges tools={tools} parts={hoverPart !== null ? [hoverPart] : tools.kinds.map((_, i) => i)} open={open} labelled={hoverPart !== null} />
       ) : null}
 
       {loaded ? (
@@ -710,7 +730,6 @@ export function ModelViewer({
                           checked={open.length === tools.movable}
                           onChange={(e) => {
                             setOpen(e.target.checked ? Array.from({ length: tools.movable }, (_, i) => i) : []);
-                            setOpened(true);
                           }}
                           className="h-4 w-4"
                         />
@@ -833,6 +852,50 @@ export function ModelViewer({
 }
 
 /** Shown over the model on phones: how to move it. Goes on the first touch or after a few seconds. */
+const PART_ICON: Record<PartKind, typeof DoorOpen> = { door: DoorOpen, drawer: Archive, slide: MoveHorizontal };
+
+/** Small buttons over the parts that open, following them as the model turns. Taps pass through to the model. */
+function PartBadges({ tools, parts, open, labelled }: { tools: SceneTools; parts: number[]; open: number[]; labelled: boolean }) {
+  const refs = useRef<(HTMLSpanElement | null)[]>([]);
+  const key = parts.join(",");
+  useEffect(() => {
+    const list = key.split(",").map(Number);
+    let raf = 0;
+    const place = () => {
+      list.forEach((p, k) => {
+        const badge = refs.current[k];
+        if (!badge) return;
+        const a = tools.anchor(p);
+        badge.style.opacity = a ? "1" : "0";
+        if (a) badge.style.transform = `translate(${Math.round(a.x)}px, ${Math.round(a.y)}px) translate(-50%, -50%)`;
+      });
+      raf = requestAnimationFrame(place);
+    };
+    place();
+    return () => cancelAnimationFrame(raf);
+  }, [tools, key]);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      {parts.map((p, k) => {
+        const Icon = PART_ICON[tools.kinds[p]];
+        return (
+          <span
+            key={p}
+            ref={(n) => {
+              refs.current[k] = n;
+            }}
+            style={{ opacity: 0 }}
+            className={`absolute left-0 top-0 flex items-center gap-1.5 rounded-full bg-white/95 text-primary shadow-[0_4px_16px_rgba(41,45,50,0.22)] transition-opacity duration-150 ${labelled ? "h-8 pl-2 pr-3 text-xs font-medium" : "h-7 w-7 justify-center motion-safe:animate-pulse"}`}
+          >
+            <Icon size={labelled ? 15 : 14} strokeWidth={1.9} />
+            {labelled ? (open.includes(p) ? "Close" : "Open") : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function GestureHint({ touchAction, movable, onDone }: { touchAction: "pan-y" | "none"; movable: boolean; onDone: () => void }) {
   const done = useRef(onDone);
   useEffect(() => {

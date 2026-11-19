@@ -32,6 +32,8 @@ export type Section = { dir: "front" | "side"; at: number; flip: boolean };
  */
 const MOVABLE = /^(door|drawer|slide)(?![a-z])\s*(l|r|left|right)?(?![a-z])\s*(\d+)?/i;
 
+export type PartKind = "door" | "drawer" | "slide";
+
 export type SceneTools = {
   /** Layer names, bottom to top. Empty when the model has none. */
   layers: string[];
@@ -50,6 +52,10 @@ export type SceneTools = {
   update(): void;
   /** How many doors, drawers and sliding parts the model has. */
   movable: number;
+  /** What each of them is. */
+  kinds: PartKind[];
+  /** Where a part's middle shows, in pixels from the viewer's top left; null when hidden or behind. */
+  anchor(part: number): { x: number; y: number } | null;
   /** The door or drawer under a point on screen, or null. */
   pick(clientX: number, clientY: number): number | null;
   /** Opens these parts (by number) and closes the rest. */
@@ -103,6 +109,7 @@ function axis(dir: Section["dir"], frontYaw: number) {
 
 type Movable = {
   node: Object3D;
+  kind: PartKind;
   /** Its local transform when closed. */
   start: Matrix4;
   /** The parent's world transform when measured: motion is worked out in the world, then brought back. */
@@ -131,7 +138,7 @@ function findMovables(root: Object3D): Object3D[] {
 function measureMovable(node: Object3D): Movable | null {
   const m = MOVABLE.exec(display(node.name));
   if (!m || !node.parent) return null;
-  const kind = m[1].toLowerCase();
+  const kind = m[1].toLowerCase() as PartKind;
   const side = (m[2] ?? "l").toLowerCase().startsWith("r") ? "r" : "l";
   // Numbers 100–180 are an angle; small ones are the loader's count for repeated names (Door_L_2).
   const angle = m[3] && +m[3] >= 100 && +m[3] <= 180 ? +m[3] : 90;
@@ -172,7 +179,7 @@ function measureMovable(node: Object3D): Movable | null {
   const across = range(right);
 
   const parentWorld = node.parent.matrixWorld.clone();
-  const base = { node, start: node.matrix.clone(), parentWorld, parentInverse: parentWorld.clone().invert(), at: 0, to: 0 };
+  const base = { node, kind, start: node.matrix.clone(), parentWorld, parentInverse: parentWorld.clone().invert(), at: 0, to: 0 };
   const none = { turn: 0, pivot: new Vector3(), slide: new Vector3() };
   if (kind === "drawer") return { ...base, ...none, slide: out.clone().multiplyScalar(Math.max(0.05, along.size * 0.8)) };
   if (kind === "slide") return { ...base, ...none, slide: right.clone().multiplyScalar((side === "l" ? -1 : 1) * across.size * 0.95) };
@@ -263,6 +270,7 @@ export function attachSceneTools(el: HTMLElement): SceneTools | null {
     if (!moving) last = 0;
   };
   const raycaster = new Raycaster();
+  const middle = new Box3();
 
   // Each plane keeps what lies on its positive side.
   const planPlane = new Plane(new Vector3(0, -1, 0), 0);
@@ -367,6 +375,17 @@ export function attachSceneTools(el: HTMLElement): SceneTools | null {
       scene.queueRender();
     },
     movable: movables.length,
+    kinds: movables.map((m) => m.kind),
+    anchor(i) {
+      const m = movables[i];
+      if (!m) return null;
+      for (let o: Object3D | null = m.node; o; o = o.parent) if (!o.visible) return null;
+      const p = middle.setFromObject(m.node).getCenter(new Vector3());
+      if (active.some((plane) => plane.distanceToPoint(p) < 0)) return null;
+      p.project(scene.getCamera());
+      if (p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return null;
+      return { x: ((p.x + 1) / 2) * el.clientWidth, y: ((1 - p.y) / 2) * el.clientHeight };
+    },
     pick(clientX, clientY) {
       if (!movables.length) return null;
       raycaster.setFromCamera(scene.getNDC(clientX, clientY), scene.getCamera());
