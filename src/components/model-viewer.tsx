@@ -501,7 +501,7 @@ export function ModelViewer({
           max-camera-orbit={`Infinity ${MAX_PHI} auto`}
           interpolation-decay="90"
           shadow-intensity="1"
-          shadow-softness="0.85"
+          shadow-softness="0.7"
           exposure={String(exposure)}
           tone-mapping="neutral"
           environment-image={envUrl ?? "neutral"}
