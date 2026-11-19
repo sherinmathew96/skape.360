@@ -114,6 +114,8 @@ export function ModelViewer({
   const [sec, setSec] = useState<Section>({ dir: "front", at: 0.5, flip: false });
   // Doors, drawers and sliding shutters that are open, by number.
   const [open, setOpen] = useState<number[]>([]);
+  // Until someone opens a part, a note says they can.
+  const [opened, setOpened] = useState(false);
   const [saved, setSaved] = useState<SavedView[]>(view.saved ?? []);
   const [viewName, setViewName] = useState("");
   const [viewNote, setViewNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -262,12 +264,34 @@ export function ModelViewer({
       setTimeout(() => (viewer.disableTap = false));
       if (e.timeStamp - d.t > 500 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
       setOpen((o) => (o.includes(d.part) ? o.filter((x) => x !== d.part) : [...o, d.part]));
+      setOpened(true);
+    };
+    // A pointing hand over parts that open (mouse only, checked a few times a second).
+    const surface = el.shadowRoot?.querySelector<HTMLElement>(".userInput") ?? null;
+    let at: { x: number; y: number } | null = null;
+    let timer = 0;
+    let over = false;
+    const check = () => {
+      timer = 0;
+      if (!surface || !at) return;
+      const now = tools.pick(at.x, at.y) !== null;
+      if (now !== over) surface.style.cursor = now ? "pointer" : "grab";
+      over = now;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.buttons) return;
+      at = { x: e.clientX, y: e.clientY };
+      // Where the mouse is after a short pause, never more than ~10 times a second.
+      if (!timer) timer = window.setTimeout(check, 90);
     };
     el.addEventListener("pointerdown", onDown, { capture: true });
     el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointermove", onMove);
     return () => {
       el.removeEventListener("pointerdown", onDown, { capture: true });
       el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointermove", onMove);
+      window.clearTimeout(timer);
       viewer.disableTap = false;
     };
   }, [tools]);
@@ -485,7 +509,17 @@ export function ModelViewer({
         </div>
       ) : null}
 
-      {hint ? <GestureHint touchAction={touchAction} onDone={() => setHint(false)} /> : null}
+      {hint ? <GestureHint touchAction={touchAction} movable={Boolean(tools?.movable)} onDone={() => setHint(false)} /> : null}
+
+      {loaded && tools?.movable && !opened && !hint ? (
+        <p
+          role="note"
+          className="pointer-events-none absolute bottom-3 left-3 flex max-w-[calc(100cqw-96px)] items-center gap-2 rounded-full bg-white/95 py-2 pl-2.5 pr-3.5 text-xs text-text shadow-[0_4px_16px_rgba(41,45,50,0.14)]"
+        >
+          <DoorOpen size={16} strokeWidth={1.8} aria-hidden="true" className="flex-none text-primary" />
+          Tap a door or drawer to open it
+        </p>
+      ) : null}
 
       {loaded ? (
         // Pinned to the viewer's height, so a long menu scrolls inside it rather than spilling over the top.
@@ -674,7 +708,10 @@ export function ModelViewer({
                         <input
                           type="checkbox"
                           checked={open.length === tools.movable}
-                          onChange={(e) => setOpen(e.target.checked ? Array.from({ length: tools.movable }, (_, i) => i) : [])}
+                          onChange={(e) => {
+                            setOpen(e.target.checked ? Array.from({ length: tools.movable }, (_, i) => i) : []);
+                            setOpened(true);
+                          }}
                           className="h-4 w-4"
                         />
                       </label>
@@ -796,7 +833,7 @@ export function ModelViewer({
 }
 
 /** Shown over the model on phones: how to move it. Goes on the first touch or after a few seconds. */
-function GestureHint({ touchAction, onDone }: { touchAction: "pan-y" | "none"; onDone: () => void }) {
+function GestureHint({ touchAction, movable, onDone }: { touchAction: "pan-y" | "none"; movable: boolean; onDone: () => void }) {
   const done = useRef(onDone);
   useEffect(() => {
     done.current = onDone;
@@ -814,6 +851,7 @@ function GestureHint({ touchAction, onDone }: { touchAction: "pan-y" | "none"; o
     { Icon: Hand, text: touchAction === "none" ? "One finger: turn and tilt" : "Drag sideways: turn and tilt" },
     { Icon: ZoomIn, text: "Pinch: zoom in and out" },
     { Icon: Move, text: "Two fingers: move" },
+    ...(movable ? [{ Icon: DoorOpen, text: "Tap a door or drawer: open it" }] : []),
   ];
   return (
     <div role="note" aria-live="polite" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 p-6">
