@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Bookmark, Box, Camera, Hand, Layers, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView, SavedView } from "@/db/schema";
-import type { SceneTools } from "@/lib/model-scene";
+import type { SceneTools, Section } from "@/lib/model-scene";
 import { skyUrl } from "@/lib/sky";
 
 declare module "react" {
@@ -110,6 +110,8 @@ export function ModelViewer({
   const [explode, setExplode] = useState(0);
   const [cutOn, setCutOn] = useState(false);
   const [cutH, setCutH] = useState(1.2);
+  const [secOn, setSecOn] = useState(false);
+  const [sec, setSec] = useState<Section>({ dir: "front", at: 0.5, flip: false });
   const [saved, setSaved] = useState<SavedView[]>(view.saved ?? []);
   const [viewName, setViewName] = useState("");
   const [viewNote, setViewNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -226,24 +228,32 @@ export function ModelViewer({
   useEffect(() => {
     tools?.setHidden(hidden);
   }, [tools, hidden]);
+  const cutting = cutOn || secOn;
   useEffect(() => {
     tools?.setCut(cutOn ? cutH : null);
-    tools?.setExplode(cutOn ? 0 : explode);
+    tools?.setSection(secOn ? sec : null, front);
+    tools?.setExplode(cutting ? 0 : explode);
     // The floor shadow ignores hidden, lifted and cut parts: leave it out while they apply.
-    ref.current?.setAttribute("shadow-intensity", cutOn || explode > 0 || hidden.length ? "0" : "1");
-  }, [tools, cutOn, cutH, explode, hidden]);
-  // The cut stays put when the view is panned.
+    ref.current?.setAttribute("shadow-intensity", cutting || explode > 0 || hidden.length ? "0" : "1");
+  }, [tools, cutOn, cutH, secOn, sec, front, cutting, explode, hidden]);
+  // The cuts stay put when the view is panned.
   useEffect(() => {
     const el = ref.current;
-    if (!el || !tools || !cutOn) return;
+    if (!el || !tools || !cutting) return;
     const onMove = () => tools.update();
     el.addEventListener("camera-change", onMove);
     return () => el.removeEventListener("camera-change", onMove);
-  }, [tools, cutOn]);
+  }, [tools, cutting]);
 
   const planView = () => {
     setFlat(true);
     goTo("top", true);
+  };
+
+  // Looking straight at the cut face, without perspective, like a drawn section.
+  const sectionView = () => {
+    setFlat(true);
+    goTo(sec.dir === "front" ? (sec.flip ? "back" : "front") : sec.flip ? "left" : "right", true);
   };
 
   const openSaved = (v: SavedView) => {
@@ -253,6 +263,8 @@ export function ModelViewer({
     setExplode(v.explode);
     setCutOn(v.cut !== null);
     if (v.cut !== null) setCutH(v.cut);
+    setSecOn(Boolean(v.section));
+    if (v.section) setSec(v.section);
     setSpinning(false);
     setFlat(Boolean(v.fov));
     el.minFieldOfView = v.fov ? "1deg" : "10deg";
@@ -277,8 +289,9 @@ export function ModelViewer({
       target: `${n(tg.x)}m ${n(tg.y)}m ${n(tg.z)}m`,
       ...(fov < 9 ? { fov: `${n(fov, 1)}deg` } : {}),
       cut: cutOn ? n(cutH) : null,
+      section: secOn ? { ...sec, at: n(sec.at, 3) } : null,
       hidden,
-      explode: cutOn ? 0 : n(explode),
+      explode: cutting ? 0 : n(explode),
     });
     const made = res.view;
     if (res.error || !made) return setViewNote({ text: res.error ?? "That view could not be saved.", error: true });
@@ -561,6 +574,59 @@ export function ModelViewer({
                     </div>
                   ) : null}
 
+                  <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
+                    <Scissors size={13} strokeWidth={1.8} aria-hidden="true" className="rotate-90" /> Section
+                  </p>
+                  <label className="flex h-11 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm hover:bg-active">
+                    Vertical section
+                    <input type="checkbox" checked={secOn} onChange={(e) => setSecOn(e.target.checked)} className="h-4 w-4" />
+                  </label>
+                  {secOn ? (
+                    <div className="px-3 pb-1">
+                      <div className="mb-2 grid grid-cols-2 gap-1" role="radiogroup" aria-label="Section direction">
+                        {(
+                          [
+                            ["front", "Front to back"],
+                            ["side", "Side to side"],
+                          ] as const
+                        ).map(([dir, label]) => (
+                          <button
+                            key={dir}
+                            type="button"
+                            role="radio"
+                            aria-checked={sec.dir === dir}
+                            onClick={() => setSec((s) => ({ ...s, dir }))}
+                            className={`h-9 rounded-lg text-sm transition-colors ${sec.dir === dir ? "bg-primary font-medium text-white" : "bg-ground text-text hover:bg-active hover:text-primary"}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <label htmlFor={`${menuId}-sec`} className="flex items-baseline justify-between text-xs text-muted">
+                        {sec.dir === "front" ? "From the front" : "From the left"}
+                        <span className="num text-sm font-medium text-text">{fmtM(sec.at * tools.extent(sec.dir, front))}</span>
+                      </label>
+                      <input
+                        id={`${menuId}-sec`}
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.005}
+                        value={sec.at}
+                        onChange={(e) => setSec((s) => ({ ...s, at: Number(e.target.value) }))}
+                        className="w-full accent-[var(--primary)]"
+                        aria-valuetext={fmtM(sec.at * tools.extent(sec.dir, front))}
+                      />
+                      <label className="flex h-10 cursor-pointer items-center justify-between gap-3 rounded-lg text-sm">
+                        {sec.dir === "front" ? "Keep the front part" : "Keep the right part"}
+                        <input type="checkbox" checked={sec.flip} onChange={(e) => setSec((s) => ({ ...s, flip: e.target.checked }))} className="h-4 w-4" />
+                      </label>
+                      <button type="button" onClick={sectionView} className="mt-1 h-10 w-full rounded-lg bg-ground text-sm hover:bg-active hover:text-primary">
+                        Section view (straight on)
+                      </button>
+                    </div>
+                  ) : null}
+
                   {showLayers ? (
                     <>
                       <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
@@ -583,7 +649,7 @@ export function ModelViewer({
                       </ul>
                       <div className="px-3 pb-1 pt-1">
                         <label htmlFor={`${menuId}-explode`} className="flex items-baseline justify-between text-xs text-muted">
-                          Explode {cutOn ? <span>(off while cutting)</span> : null}
+                          Explode {cutting ? <span>(off while cutting)</span> : null}
                         </label>
                         <input
                           id={`${menuId}-explode`}
@@ -592,19 +658,20 @@ export function ModelViewer({
                           max={1}
                           step={0.01}
                           value={explode}
-                          disabled={cutOn}
+                          disabled={cutting}
                           onChange={(e) => setExplode(Number(e.target.value))}
                           className="w-full accent-[var(--primary)] disabled:opacity-40"
                         />
                       </div>
                     </>
                   ) : null}
-                  {cutOn || explode > 0 || hidden.length ? (
+                  {cutting || explode > 0 || hidden.length ? (
                     <button
                       type="button"
                       className={item}
                       onClick={() => {
                         setCutOn(false);
+                        setSecOn(false);
                         setExplode(0);
                         setHidden([]);
                       }}

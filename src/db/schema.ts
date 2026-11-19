@@ -269,6 +269,8 @@ export type SavedView = {
   fov?: string;
   /** Plan cut in metres above the model's base; null for none */
   cut: number | null;
+  /** Vertical section: across the front or the side, 0–1 from the front/left, and which half stays */
+  section?: { dir: "front" | "side"; at: number; flip: boolean } | null;
   /** Layers turned off */
   hidden: string[];
   /** 0 = assembled, 1 = fully apart */

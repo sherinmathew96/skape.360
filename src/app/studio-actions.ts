@@ -191,6 +191,7 @@ const savedViewInput = z.object({
   target: z.string().regex(/^-?[\d.]+m -?[\d.]+m -?[\d.]+m$/),
   fov: z.string().regex(/^[\d.]+deg$/).optional(),
   cut: z.number().min(0).max(1000).nullable(),
+  section: z.object({ dir: z.enum(["front", "side"]), at: z.number().min(0).max(1), flip: z.boolean() }).nullable().optional(),
   hidden: z.array(z.string().max(120)).max(40),
   explode: z.number().min(0).max(1),
 });
