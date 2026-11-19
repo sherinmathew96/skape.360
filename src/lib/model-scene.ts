@@ -28,11 +28,12 @@ export type Section = { dir: "front" | "side"; at: number; flip: boolean };
  *   Door L / Door R   swings 90° on its left or right edge (Door L 180: folds right back)
  *   Drawer            slides out along the red axis
  *   Slide L / Slide R slides sideways (wardrobe shutters, sliding doors)
+ *   Fold L / Fold R   a bi-fold: each panel its own group inside; folds up on the left or right
  * Matches optimize-model.ts.
  */
-const MOVABLE = /^(door|drawer|slide)(?![a-z])\s*(l|r|left|right)?(?![a-z])\s*(\d+)?/i;
+const MOVABLE = /^(door|drawer|slide|fold)(?![a-z])\s*(l|r|left|right)?(?![a-z])\s*(\d+)?/i;
 
-export type PartKind = "door" | "drawer" | "slide";
+export type PartKind = "door" | "drawer" | "slide" | "fold";
 
 export type SceneTools = {
   /** Layer names, bottom to top. Empty when the model has none. */
@@ -119,10 +120,48 @@ type Movable = {
   turn: number;
   pivot: Vector3;
   slide: Vector3;
+  /** A bi-fold's panels, from the hinge out, each folding the other way to the one before. */
+  fold?: { leaves: Leaf[]; s: Vector3; sign: number; angle: number };
   /** 0 closed … 1 open, now and where it is heading. */
   at: number;
   to: number;
 };
+
+type Leaf = {
+  node: Object3D;
+  start: Matrix4;
+  parentWorld: Matrix4;
+  parentInverse: Matrix4;
+  /** Its hinge-side edge, on the face it folds towards, when closed. */
+  from: Vector3;
+  /** How far along the track the next panel starts. */
+  span: number;
+};
+
+/** A part's vertices in the world (a sample of them on big parts). */
+function pointsOf(node: Object3D): Vector3[] {
+  const points: Vector3[] = [];
+  const v = new Vector3();
+  node.traverse((o) => {
+    const geo = (o as Mesh).isMesh ? ((o as Mesh).geometry as BufferGeometry) : null;
+    const pos = geo?.getAttribute("position");
+    if (!pos) return;
+    const stride = Math.max(1, Math.floor(pos.count / 4000));
+    for (let i = 0; i < pos.count; i += stride) points.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
+  });
+  return points;
+}
+
+function rangeOf(points: Vector3[], n: Vector3) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of points) {
+    const d = p.dot(n);
+    if (d < min) min = d;
+    if (d > max) max = d;
+  }
+  return { min, max, size: max - min };
+}
 
 function findMovables(root: Object3D): Object3D[] {
   const found: Object3D[] = [];
@@ -147,15 +186,7 @@ function measureMovable(node: Object3D): Movable | null {
   const up = new Vector3(0, 1, 0);
   const out = new Vector3(1, 0, 0).transformDirection(node.matrixWorld).setY(0);
   // Its vertices in the world, to measure along the way it opens (out), across it (right).
-  const points: Vector3[] = [];
-  const v = new Vector3();
-  node.traverse((o) => {
-    const geo = (o as Mesh).isMesh ? ((o as Mesh).geometry as BufferGeometry) : null;
-    const pos = geo?.getAttribute("position");
-    if (!pos) return;
-    const stride = Math.max(1, Math.floor(pos.count / 4000));
-    for (let i = 0; i < pos.count; i += stride) points.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
-  });
+  const points = pointsOf(node);
   if (!points.length) return null;
   if (out.lengthSq() < 1e-6) {
     // Red axis points straight up: open across the thinner side instead.
@@ -165,24 +196,40 @@ function measureMovable(node: Object3D): Movable | null {
   }
   out.normalize();
   const right = new Vector3().crossVectors(up, out);
-  const range = (n: Vector3) => {
-    let min = Infinity;
-    let max = -Infinity;
-    for (const p of points) {
-      const d = p.dot(n);
-      if (d < min) min = d;
-      if (d > max) max = d;
-    }
-    return { min, max, size: max - min };
-  };
-  const along = range(out);
-  const across = range(right);
+  const along = rangeOf(points, out);
+  const across = rangeOf(points, right);
 
   const parentWorld = node.parent.matrixWorld.clone();
   const base = { node, kind, start: node.matrix.clone(), parentWorld, parentInverse: parentWorld.clone().invert(), at: 0, to: 0 };
   const none = { turn: 0, pivot: new Vector3(), slide: new Vector3() };
   if (kind === "drawer") return { ...base, ...none, slide: out.clone().multiplyScalar(Math.max(0.05, along.size * 0.8)) };
   if (kind === "slide") return { ...base, ...none, slide: right.clone().multiplyScalar((side === "l" ? -1 : 1) * across.size * 0.95) };
+  if (kind === "fold") {
+    // The panels: the groups inside it (through one wrapper group, if any).
+    let panels = node.children.filter((c) => hasMesh(c) && !/^fold.?frame/i.test(display(c.name)));
+    while (panels.length === 1 && !(panels[0] as Mesh).isMesh) panels = panels[0].children.filter(hasMesh);
+    if (panels.length >= 2) {
+      // s runs from the hinge along the closed panels.
+      const s = right.clone().multiplyScalar(side === "l" ? 1 : -1);
+      const placed = panels
+        .map((p) => ({ p, start: rangeOf(pointsOf(p), s).min }))
+        .sort((a, b) => a.start - b.start);
+      const leaves: Leaf[] = placed.map(({ p, start }, i) => {
+        const world = (p.parent ?? node).matrixWorld.clone();
+        return {
+          node: p,
+          start: p.matrix.clone(),
+          parentWorld: world,
+          parentInverse: world.clone().invert(),
+          from: s.clone().multiplyScalar(start).addScaledVector(out, along.max),
+          span: i + 1 < placed.length ? placed[i + 1].start - start : 0,
+        };
+      });
+      // The first panel turns its free edge out; the next folds back, and so on.
+      const sign = Math.sign(new Vector3().crossVectors(up, s).dot(out)) || 1;
+      return { ...base, ...none, pivot: leaves[0].from.clone(), fold: { leaves, s, sign, angle: (82 * Math.PI) / 180 } };
+    }
+  }
   // A door: the hinge runs up its left or right edge, on the face it opens towards.
   const hinge = side === "l" ? across.min : across.max;
   const pivot = right.clone().multiplyScalar(hinge).addScaledVector(out, along.max);
@@ -241,8 +288,26 @@ export function attachSceneTools(el: HTMLElement): SceneTools | null {
     .filter((m): m is Movable => m !== null);
   const turnAt = new Matrix4();
   const moveTo = new Matrix4();
+  const joint = new Vector3();
+  const along = new Vector3();
+  const upAxis = new Vector3(0, 1, 0);
   const placeMovable = (m: Movable) => {
     const k = ease(m.at);
+    if (m.fold) {
+      // Each panel turns about the edge where the one before it now ends.
+      const { leaves, s, sign, angle } = m.fold;
+      joint.copy(m.pivot);
+      leaves.forEach((l, i) => {
+        const a = (i % 2 ? -sign : sign) * angle * k;
+        turnAt.makeTranslation(joint.x, joint.y, joint.z);
+        turnAt.multiply(moveTo.makeRotationY(a));
+        turnAt.multiply(moveTo.makeTranslation(-l.from.x, -l.from.y, -l.from.z));
+        moveTo.copy(l.parentInverse).multiply(turnAt).multiply(l.parentWorld).multiply(l.start);
+        moveTo.decompose(l.node.position, l.node.quaternion, l.node.scale);
+        joint.addScaledVector(along.copy(s).applyAxisAngle(upAxis, a), l.span);
+      });
+      return;
+    }
     // In the world: about the hinge, or along the slide…
     if (m.turn) {
       turnAt.makeTranslation(m.pivot.x, m.pivot.y, m.pivot.z);

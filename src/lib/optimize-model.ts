@@ -120,8 +120,8 @@ export function layerName(node: GNode): string | null {
   return name && !GENERIC_NAME.test(name) ? name : null;
 }
 
-/** Doors, drawers and sliding shutters: parts the viewer opens. Matches model-scene.ts. */
-const MOVABLE = /^(door|drawer|slide)(?![a-z])/i;
+/** Doors, drawers, sliding shutters and bi-folds: parts the viewer opens. Matches model-scene.ts. */
+const MOVABLE = /^(door|drawer|slide|fold)(?![a-z])/i;
 export const isMovable = (node: GNode) => MOVABLE.test(node.getName().trim());
 
 /** The outermost movable parts below a node (a drawer inside a door moves with the door). */
@@ -168,6 +168,30 @@ function gather(unit: GNode, doc: GltfDocument) {
   }
 }
 
+/**
+ * A bi-fold: each panel (a group inside it) is kept whole and separate, so the
+ * viewer can fold them against each other. Loose geometry in the bi-fold
+ * group itself (a track, say) becomes a fixed "Fold frame".
+ */
+function gatherFold(unit: GNode, doc: GltfDocument) {
+  let leaves = unit.listChildren().filter(hasMesh);
+  while (leaves.length === 1 && !leaves[0].getMesh()) leaves = leaves[0].listChildren().filter(hasMesh);
+  if (leaves.length < 2) return gather(unit, doc);
+  const own = unit.getMesh();
+  if (own) {
+    unit.setMesh(null);
+    unit.addChild(doc.createNode("Fold frame").setMesh(own));
+  }
+  leaves.forEach((leaf, i) => {
+    if (leaf.getParentNode() !== unit) reparent(leaf, unit);
+    if (!leaf.getName().trim() || isMovable(leaf)) leaf.setName(`Panel ${i + 1}`);
+    gather(leaf, doc);
+  });
+}
+
+/** Keeps a movable part together the way the viewer moves it. */
+const gatherPart = (part: GNode, doc: GltfDocument) => (/^fold(?![a-z])/i.test(part.getName().trim()) ? gatherFold(part, doc) : gather(part, doc));
+
 const hasMesh = (node: GNode): boolean => Boolean(node.getMesh()) || node.listChildren().some(hasMesh);
 
 /**
@@ -198,14 +222,14 @@ export function keepLayers(layers: GNode[], doc: GltfDocument): number {
   let movable = 0;
   for (const layer of layers) {
     if (isMovable(layer)) {
-      gather(layer, doc);
+      gatherPart(layer, doc);
       movable++;
       continue;
     }
     if (!layerName(layer)) layer.setName("");
     for (const part of movablesIn(layer.listChildren())) {
       reparent(part, layer);
-      gather(part, doc);
+      gatherPart(part, doc);
       movable++;
     }
     gather(layer, doc);
@@ -235,7 +259,7 @@ function flattenKeepingMovables(doc: GltfDocument): number {
   });
   for (const part of parts) {
     reparent(part, scene);
-    gather(part, doc);
+    gatherPart(part, doc);
   }
   for (const node of loose) reparent(node, scene);
   return parts.length;

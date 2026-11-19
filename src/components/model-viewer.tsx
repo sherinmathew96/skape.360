@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Archive, Bookmark, Box, Camera, DoorOpen, Hand, Layers, Maximize2, Minimize2, Move, MoveHorizontal, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Archive, Bookmark, Box, Camera, DoorOpen, FoldHorizontal, Hand, Layers, Maximize2, Minimize2, Move, MoveHorizontal, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView, SavedView } from "@/db/schema";
 import type { PartKind, SceneTools, Section } from "@/lib/model-scene";
 import { skyUrl } from "@/lib/sky";
@@ -852,7 +852,7 @@ export function ModelViewer({
 }
 
 /** Shown over the model on phones: how to move it. Goes on the first touch or after a few seconds. */
-const PART_ICON: Record<PartKind, typeof DoorOpen> = { door: DoorOpen, drawer: Archive, slide: MoveHorizontal };
+const PART_ICON: Record<PartKind, typeof DoorOpen> = { door: DoorOpen, drawer: Archive, slide: MoveHorizontal, fold: FoldHorizontal };
 
 /** Small buttons over the parts that open, following them as the model turns. Taps pass through to the model. */
 function PartBadges({ tools, parts, open, labelled }: { tools: SceneTools; parts: number[]; open: number[]; labelled: boolean }) {
