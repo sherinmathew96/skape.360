@@ -56,7 +56,8 @@ export function ModelUpload({ projectId }: { projectId: string }) {
                   const { optimizeModel } = await import("@/lib/optimize-model");
                   const res = await optimizeModel(file, onStep);
                   setReport(res.report);
-                  return res.report.after < res.report.before ? res.file : file;
+                  // Doors and bi-folds only open in the optimised file, so keep it even if it isn't smaller.
+                  return res.report.after < res.report.before || res.report.movable ? res.file : file;
                 } catch {
                   setWarning("This model couldn't be optimised, so it was uploaded as it is.");
                   return file;

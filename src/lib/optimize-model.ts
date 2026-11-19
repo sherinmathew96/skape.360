@@ -173,10 +173,78 @@ function gather(unit: GNode, doc: GltfDocument) {
  * viewer can fold them against each other. Loose geometry in the bi-fold
  * group itself (a track, say) becomes a fixed "Fold frame".
  */
+/** How tall a part stands in the world (its meshes' boxes, corner by corner). */
+function heightOf(node: GNode): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  node.traverse((n) => {
+    const mesh = n.getMesh();
+    if (!mesh) return;
+    const m = n.getWorldMatrix();
+    for (const prim of mesh.listPrimitives()) {
+      const pos = prim.getAttribute("POSITION");
+      if (!pos) continue;
+      const a = pos.getMin([]);
+      const b = pos.getMax([]);
+      for (let i = 0; i < 8; i++) {
+        const x = i & 1 ? b[0] : a[0];
+        const y = i & 2 ? b[1] : a[1];
+        const z = i & 4 ? b[2] : a[2];
+        const wy = m[1] * x + m[5] * y + m[9] * z + m[13];
+        lo = Math.min(lo, wy);
+        hi = Math.max(hi, wy);
+      }
+    }
+  });
+  return hi > lo ? hi - lo : 0;
+}
+
+/**
+ * Panels modelled one inside the other (panel 2 a group inside panel 1, panel
+ * 3 inside panel 2…): set side by side as Panel 1, Panel 2… each with its own
+ * geometry and small parts (a handle), so they fold like the side-by-side kind.
+ * A panel's next panel is a group inside it standing at least 60% as tall as
+ * the whole bi-fold; anything smaller is part of the panel.
+ */
+function chainToPanels(unit: GNode, head: GNode, doc: GltfDocument): boolean {
+  const tall = heightOf(unit) * 0.6;
+  const chain: { node: GNode; next: GNode | null }[] = [];
+  for (let p: GNode | null = head; p && chain.length < 12; ) {
+    const next: GNode | null = p.listChildren().find((c) => hasMesh(c) && heightOf(c) >= tall) ?? null;
+    chain.push({ node: p, next });
+    p = next;
+  }
+  if (chain.length < 2) return false;
+  const toUnit = invert(unit.getWorldMatrix());
+  const panels = chain.map(({ node }, i) => {
+    const panel = doc.createNode(`Panel ${i + 1}`).setMatrix(multiply(toUnit, node.getWorldMatrix()));
+    return panel;
+  });
+  // Each panel's small parts, listed before the new panels join the bi-fold group.
+  const extras = chain.map(({ node, next }) => node.listChildren().filter((c) => c !== next));
+  chain.forEach(({ node }, i) => {
+    const panel = panels[i];
+    unit.addChild(panel);
+    const own = node.getMesh();
+    if (own) {
+      node.setMesh(null);
+      panel.addChild(doc.createNode("").setMesh(own));
+    }
+    for (const c of extras[i]) reparent(c, panel);
+  });
+  // The emptied groups are left for prune(); each panel gathers its own meshes.
+  panels.forEach((p) => gather(p, doc));
+  return true;
+}
+
 function gatherFold(unit: GNode, doc: GltfDocument) {
   let leaves = unit.listChildren().filter(hasMesh);
   while (leaves.length === 1 && !leaves[0].getMesh()) leaves = leaves[0].listChildren().filter(hasMesh);
-  if (leaves.length < 2) return gather(unit, doc);
+  if (leaves.length < 2) {
+    // One panel inside another: the bi-fold group itself may be the first panel.
+    if (chainToPanels(unit, unit.getMesh() ? unit : (leaves[0] ?? unit), doc)) return;
+    return gather(unit, doc);
+  }
   const own = unit.getMesh();
   if (own) {
     unit.setMesh(null);

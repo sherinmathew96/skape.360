@@ -170,7 +170,7 @@ export function DrawingVisualsButton({
                               try {
                                 const { optimizeModel } = await import("@/lib/optimize-model");
                                 const res = await optimizeModel(file, onStep);
-                                if (res.report.after >= res.report.before) return file;
+                                if (res.report.after >= res.report.before && !res.report.movable) return file;
                                 optimizedUsed.current = true;
                                 return res.file;
                               } catch {

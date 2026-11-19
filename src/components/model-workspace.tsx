@@ -80,7 +80,7 @@ export function ModelWorkspace({
       const original = new File([await res.blob()], `${title}.glb`, { type: "model/gltf-binary" });
       const { optimizeModel } = await import("@/lib/optimize-model");
       const { file, report } = await optimizeModel(original, (step) => setStatus({ text: step }));
-      if (report.after >= report.before) return "This model is already as small as it gets.";
+      if (report.after >= report.before && !report.movable) return "This model is already as small as it gets.";
       const fileId = await uploadFile(projectId, "model", file, (l, t) => setStatus({ text: `Uploading… ${Math.round((l / t) * 100)}%` }));
       await replaceModelFile({ projectId, modelId, fileId });
       const layerNote = report.layers.length ? ` Layers kept: ${report.layers.join(", ")}.` : "";
