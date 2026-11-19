@@ -194,6 +194,7 @@ const savedViewInput = z.object({
   section: z.object({ dir: z.enum(["front", "side"]), at: z.number().min(0).max(1), flip: z.boolean() }).nullable().optional(),
   hidden: z.array(z.string().max(120)).max(40),
   explode: z.number().min(0).max(1),
+  open: z.array(z.number().int().min(0).max(999)).max(500).optional(),
 });
 
 const MAX_SAVED_VIEWS = 24;

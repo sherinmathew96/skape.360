@@ -275,6 +275,8 @@ export type SavedView = {
   hidden: string[];
   /** 0 = assembled, 1 = fully apart */
   explode: number;
+  /** Doors and drawers left open, by their order in the model */
+  open?: number[];
 };
 
 export const models3d = pgTable(

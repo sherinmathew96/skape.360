@@ -84,7 +84,8 @@ export function ModelWorkspace({
       const fileId = await uploadFile(projectId, "model", file, (l, t) => setStatus({ text: `Uploading… ${Math.round((l / t) * 100)}%` }));
       await replaceModelFile({ projectId, modelId, fileId });
       const layerNote = report.layers.length ? ` Layers kept: ${report.layers.join(", ")}.` : "";
-      return `Optimised: ${formatBytes(report.before)} to ${formatBytes(report.after)}, ${report.meshesBefore.toLocaleString("en-IN")} pieces to ${report.meshesAfter.toLocaleString("en-IN")}.${layerNote}`;
+      const moveNote = report.movable ? ` Doors and drawers that open: ${report.movable}.` : "";
+      return `Optimised: ${formatBytes(report.before)} to ${formatBytes(report.after)}, ${report.meshesBefore.toLocaleString("en-IN")} pieces to ${report.meshesAfter.toLocaleString("en-IN")}.${layerNote}${moveNote}`;
     });
 
   return (

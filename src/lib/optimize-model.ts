@@ -20,6 +20,8 @@ export type OptimizeReport = {
   texturesResized: number;
   /** Named groups kept as layers (Plinth, Walls, Roof…); empty when none */
   layers: string[];
+  /** Doors, drawers and sliding parts kept so the viewer can open them. */
+  movable: number;
 };
 
 const MAX_TEXTURE = 2048;
@@ -118,6 +120,54 @@ export function layerName(node: GNode): string | null {
   return name && !GENERIC_NAME.test(name) ? name : null;
 }
 
+/** Doors, drawers and sliding shutters: parts the viewer opens. Matches model-scene.ts. */
+const MOVABLE = /^(door|drawer|slide)(?![a-z])/i;
+export const isMovable = (node: GNode) => MOVABLE.test(node.getName().trim());
+
+/** The outermost movable parts below a node (a drawer inside a door moves with the door). */
+function movablesIn(nodes: GNode[]): GNode[] {
+  const found: GNode[] = [];
+  const walk = (n: GNode) => (isMovable(n) ? found.push(n) : n.listChildren().forEach(walk));
+  nodes.forEach(walk);
+  return found;
+}
+
+/** Moves a node under a new parent (or to the scene's top level) without moving it in the world. */
+function reparent(node: GNode, parent: GNode | import("@gltf-transform/core").Scene) {
+  const world = node.getWorldMatrix();
+  const local = "getWorldMatrix" in parent ? multiply(invert(parent.getWorldMatrix()), world) : (world as unknown as Mat4);
+  node.getParentNode()?.removeChild(node);
+  for (const s of node.listParents()) if (s.propertyType === "Scene") (s as import("@gltf-transform/core").Scene).removeChild(node);
+  node.setMatrix(local);
+  parent.addChild(node);
+}
+
+/**
+ * Puts every mesh below a part (outside the movable parts inside it) directly
+ * under it, keeping where it sits in the world, so the part merges within
+ * itself but never with anything else. A part's own mesh moves to a child,
+ * so the part itself is never merged away.
+ */
+function gather(unit: GNode, doc: GltfDocument) {
+  const own = unit.getMesh();
+  if (own) {
+    unit.setMesh(null);
+    unit.addChild(doc.createNode("").setMesh(own));
+  }
+  const meshes: GNode[] = [];
+  const walk = (n: GNode) =>
+    n.listChildren().forEach((c) => {
+      if (isMovable(c)) return;
+      if (c.getMesh() && c.getParentNode() !== unit) meshes.push(c);
+      walk(c);
+    });
+  walk(unit);
+  for (const node of meshes) {
+    reparent(node, unit);
+    node.setName("");
+  }
+}
+
 const hasMesh = (node: GNode): boolean => Boolean(node.getMesh()) || node.listChildren().some(hasMesh);
 
 /**
@@ -133,7 +183,7 @@ export function findLayers(doc: GltfDocument): GNode[] | null {
       level = parts[0].listChildren();
       continue;
     }
-    const named = parts.filter((p) => layerName(p));
+    const named = parts.filter((p) => layerName(p) && !isMovable(p));
     return named.length >= 2 && named.length <= 40 ? parts : null;
   }
   return null;
@@ -144,21 +194,51 @@ export function findLayers(doc: GltfDocument): GNode[] | null {
  * sits in the world, so the layer can be merged within itself but never with
  * another layer. Unnamed parts stay in the model but are not layers.
  */
-export function keepLayers(layers: GNode[]) {
+export function keepLayers(layers: GNode[], doc: GltfDocument): number {
+  let movable = 0;
   for (const layer of layers) {
-    if (!layerName(layer)) layer.setName("");
-    const toLayer = invert(layer.getWorldMatrix());
-    const meshes: GNode[] = [];
-    layer.traverse((n) => {
-      if (n !== layer && n.getMesh()) meshes.push(n);
-    });
-    for (const node of meshes) {
-      const local = multiply(toLayer, node.getWorldMatrix());
-      node.getParentNode()?.removeChild(node);
-      node.setMatrix(local).setName("");
-      layer.addChild(node);
+    if (isMovable(layer)) {
+      gather(layer, doc);
+      movable++;
+      continue;
     }
+    if (!layerName(layer)) layer.setName("");
+    for (const part of movablesIn(layer.listChildren())) {
+      reparent(part, layer);
+      gather(part, doc);
+      movable++;
+    }
+    gather(layer, doc);
   }
+  return movable;
+}
+
+/**
+ * Like flatten(), but each door, drawer and sliding part comes up whole, with
+ * its own axes (the hinge and the way it opens), and its meshes under it.
+ */
+function flattenKeepingMovables(doc: GltfDocument): number {
+  const scene = doc.getRoot().listScenes()[0];
+  if (!scene) return 0;
+  const parts = movablesIn(scene.listChildren());
+  const loose: GNode[] = [];
+  const walk = (n: GNode) =>
+    n.listChildren().forEach((c) => {
+      if (isMovable(c)) return;
+      if (c.getMesh()) loose.push(c);
+      walk(c);
+    });
+  scene.listChildren().forEach((n) => {
+    if (isMovable(n)) return;
+    if (n.getMesh()) loose.push(n);
+    walk(n);
+  });
+  for (const part of parts) {
+    reparent(part, scene);
+    gather(part, doc);
+  }
+  for (const node of loose) reparent(node, scene);
+  return parts.length;
 }
 
 export async function optimizeModel(file: File, onStep?: (step: string) => void): Promise<{ file: File; report: OptimizeReport }> {
@@ -182,12 +262,17 @@ export async function optimizeModel(file: File, onStep?: (step: string) => void)
   onStep?.("Merging and compressing geometry…");
   realisticMaterials(doc);
   const layers = findLayers(doc);
+  let movable = 0;
   if (layers) {
     // Named groups (Plinth, Walls, Roof…) stay separate so the viewer can show,
     // hide and lift them; each one is merged within itself.
     await doc.transform(fn.dedup());
-    keepLayers(layers);
+    movable = keepLayers(layers, doc);
     await doc.transform(fn.join({ keepNamed: true }), fn.weld(), fn.prune());
+  } else if (movablesIn(doc.getRoot().listScenes()[0]?.listChildren() ?? []).length) {
+    await doc.transform(fn.dedup());
+    movable = flattenKeepingMovables(doc);
+    await doc.transform(fn.prune({ propertyTypes: ["Node"], keepLeaves: false }), fn.join({ keepNamed: false }), fn.weld(), fn.prune());
   } else {
     await doc.transform(
       fn.dedup(),
@@ -229,7 +314,8 @@ export async function optimizeModel(file: File, onStep?: (step: string) => void)
       meshesBefore,
       meshesAfter: doc.getRoot().listMeshes().length,
       texturesResized,
-      layers: [...new Set((layers ?? []).map((l) => layerName(l)).filter((n): n is string => Boolean(n)))],
+      layers: [...new Set((layers ?? []).filter((l) => !isMovable(l)).map((l) => layerName(l)).filter((n): n is string => Boolean(n)))],
+      movable,
     },
   };
 }

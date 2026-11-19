@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Bookmark, Box, Camera, Hand, Layers, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Bookmark, Box, Camera, DoorOpen, Hand, Layers, Maximize2, Minimize2, Move, Pause, Play, Plus, RotateCcw, RotateCw, Scissors, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Lighting, ModelView, SavedView } from "@/db/schema";
 import type { SceneTools, Section } from "@/lib/model-scene";
 import { skyUrl } from "@/lib/sky";
@@ -112,6 +112,8 @@ export function ModelViewer({
   const [cutH, setCutH] = useState(1.2);
   const [secOn, setSecOn] = useState(false);
   const [sec, setSec] = useState<Section>({ dir: "front", at: 0.5, flip: false });
+  // Doors, drawers and sliding shutters that are open, by number.
+  const [open, setOpen] = useState<number[]>([]);
   const [saved, setSaved] = useState<SavedView[]>(view.saved ?? []);
   const [viewName, setViewName] = useState("");
   const [viewNote, setViewNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -233,9 +235,42 @@ export function ModelViewer({
     tools?.setCut(cutOn ? cutH : null);
     tools?.setSection(secOn ? sec : null, front);
     tools?.setExplode(cutting ? 0 : explode);
-    // The floor shadow ignores hidden, lifted and cut parts: leave it out while they apply.
-    ref.current?.setAttribute("shadow-intensity", cutting || explode > 0 || hidden.length ? "0" : "1");
-  }, [tools, cutOn, cutH, secOn, sec, front, cutting, explode, hidden]);
+    // The floor shadow ignores hidden, lifted, cut and opened parts: leave it out while they apply.
+    ref.current?.setAttribute("shadow-intensity", cutting || explode > 0 || hidden.length || open.length ? "0" : "1");
+  }, [tools, cutOn, cutH, secOn, sec, front, cutting, explode, hidden, open.length]);
+  useEffect(() => {
+    tools?.setOpen(open);
+  }, [tools, open]);
+  // A tap (not a drag) on a door or drawer opens or closes it.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !tools?.movable) return;
+    const viewer = el as unknown as { disableTap: boolean };
+    let down: { x: number; y: number; t: number; id: number; part: number } | null = null;
+    // Caught on the way in, before the viewer sees it: a tap on a part opens it
+    // instead of moving the view's centre there (the viewer's own tap).
+    const onDown = (e: PointerEvent) => {
+      const part = e.isPrimary ? tools.pick(e.clientX, e.clientY) : null;
+      down = part === null ? null : { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, part };
+      viewer.disableTap = part !== null;
+    };
+    const onUp = (e: PointerEvent) => {
+      const d = down;
+      down = null;
+      if (!d || d.id !== e.pointerId) return;
+      // Let the viewer's own tap work again once it has seen this one.
+      setTimeout(() => (viewer.disableTap = false));
+      if (e.timeStamp - d.t > 500 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
+      setOpen((o) => (o.includes(d.part) ? o.filter((x) => x !== d.part) : [...o, d.part]));
+    };
+    el.addEventListener("pointerdown", onDown, { capture: true });
+    el.addEventListener("pointerup", onUp);
+    return () => {
+      el.removeEventListener("pointerdown", onDown, { capture: true });
+      el.removeEventListener("pointerup", onUp);
+      viewer.disableTap = false;
+    };
+  }, [tools]);
   // The cuts stay put when the view is panned.
   useEffect(() => {
     const el = ref.current;
@@ -265,6 +300,7 @@ export function ModelViewer({
     if (v.cut !== null) setCutH(v.cut);
     setSecOn(Boolean(v.section));
     if (v.section) setSec(v.section);
+    setOpen(v.open ?? []);
     setSpinning(false);
     setFlat(Boolean(v.fov));
     el.minFieldOfView = v.fov ? "1deg" : "10deg";
@@ -292,6 +328,7 @@ export function ModelViewer({
       section: secOn ? { ...sec, at: n(sec.at, 3) } : null,
       hidden,
       explode: cutting ? 0 : n(explode),
+      ...(open.length ? { open } : {}),
     });
     const made = res.view;
     if (res.error || !made) return setViewNote({ text: res.error ?? "That view could not be saved.", error: true });
@@ -625,6 +662,24 @@ export function ModelViewer({
                         Section view (straight on)
                       </button>
                     </div>
+                  ) : null}
+
+                  {tools.movable ? (
+                    <>
+                      <p className="mt-2 flex items-center gap-1.5 border-t border-rule px-1 pb-1 pt-3 text-xs font-medium text-muted">
+                        <DoorOpen size={13} strokeWidth={1.8} aria-hidden="true" /> Doors and drawers
+                      </p>
+                      <label className="flex h-11 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm hover:bg-active">
+                        Open all
+                        <input
+                          type="checkbox"
+                          checked={open.length === tools.movable}
+                          onChange={(e) => setOpen(e.target.checked ? Array.from({ length: tools.movable }, (_, i) => i) : [])}
+                          className="h-4 w-4"
+                        />
+                      </label>
+                      <p className="px-3 pb-1 text-xs text-muted">Or tap one in the model to open or close it.</p>
+                    </>
                   ) : null}
 
                   {showLayers ? (
