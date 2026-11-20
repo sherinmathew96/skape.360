@@ -5,24 +5,7 @@ import "@photo-sphere-viewer/core/index.css";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
 import type { TourData } from "@/lib/studio";
-
-/**
- * How wide a 360° photo this device can open: 4096 px on phones and tablets
- * (more runs them out of memory), up to 8192 on computers, and never wider
- * than the graphics chip can draw. The server makes and keeps that copy.
- */
-function panoramaWidth(): 2048 | 4096 | 8192 {
-  let maxTexture = 4096;
-  try {
-    const gl = document.createElement("canvas").getContext("webgl");
-    if (gl) maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-  } catch {
-    // Keep the safe default.
-  }
-  const touch = window.matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 768;
-  const wanted = Math.min(touch ? 4096 : 8192, maxTexture);
-  return wanted >= 8192 ? 8192 : wanted >= 4096 ? 4096 : 2048;
-}
+import { panoramaWidth, smoothPanoramas } from "@/lib/panorama-view";
 
 /** A small copy of each 360° photo, shown at once while the sharp one loads. */
 const PREVIEW_WIDTH = 1024;
@@ -89,6 +72,7 @@ export function TourViewer({
           ],
         });
         viewer.addEventListener("panorama-error", () => setFailed(true));
+        smoothPanoramas(viewer);
         const v = viewer;
         const tourPlugin = v.getPlugin<InstanceType<typeof VirtualTourPlugin>>(VirtualTourPlugin);
         tourPlugin.addEventListener("node-changed", ({ node }) => {

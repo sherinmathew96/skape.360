@@ -7,6 +7,7 @@ import "@photo-sphere-viewer/core/index.css";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 import { addHotspot, addScene, deleteHotspot, deleteScene, renameScene, setStartScene } from "@/app/studio-actions";
 import type { TourData } from "@/lib/studio";
+import { panoramaWidth, smoothPanoramas } from "@/lib/panorama-view";
 import { TourViewer } from "./tour-viewer";
 import { Uploader } from "./uploader";
 
@@ -60,13 +61,23 @@ export function TourBuilder({ projectId, tour }: { projectId: string; tour: Tour
       if (!alive) return;
       instance = new Viewer({
         container: el,
-        panorama: `/api/files/${selected.fileId}?w=4096`,
+        // A quick look first; the full-quality photo replaces it below.
+        panorama: `/api/files/${selected.fileId}?w=1024`,
         navbar: ["zoom", "move", "fullscreen"],
         defaultZoomLvl: 0,
         loadingTxt: "",
         mousewheelCtrlKey: true,
         plugins: [MarkersPlugin],
       });
+      smoothPanoramas(instance);
+      const v = instance;
+      v.addEventListener(
+        "ready",
+        () => {
+          if (alive) v.setPanorama(`/api/files/${selected.fileId}?w=${panoramaWidth()}`, { transition: false, showLoader: false }).catch(() => {});
+        },
+        { once: true },
+      );
       const markers = instance.getPlugin(MarkersPlugin) as Markers;
       viewerRef.current = { viewer: instance, markers };
 

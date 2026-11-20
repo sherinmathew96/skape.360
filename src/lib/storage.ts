@@ -138,9 +138,12 @@ export const IMAGE_WIDTHS = [1024, 2048, 4096, 8192] as const;
  * small ones are only seen for a moment or at thumbnail size.
  */
 const copyQuality = (width: number) => (width >= 4096 ? 92 : 80);
+/** Full-size views keep colour at full resolution too: thin coloured lines and lit edges in renders stay crisp. */
+const fullColour = (width: number) => width >= 4096;
 
 /** Where a copy is kept. The quality is in the name, so raising it makes fresh copies. */
-const copyKey = (width: number, storageKey: string) => `derived/w${width}-q${copyQuality(width)}/${storageKey}.jpg`;
+const copyKey = (width: number, storageKey: string) =>
+  `derived/w${width}-q${copyQuality(width)}${fullColour(width) ? "-444" : ""}/${storageKey}.jpg`;
 
 /** `?w=4096` on a file link, when it is one of the allowed widths. */
 export function requestedWidth(req: Request): number | undefined {
@@ -176,7 +179,7 @@ async function makeCopy(original: Buffer, file: StoredImage, width: number) {
     .rotate()
     .resize({ width, withoutEnlargement: true })
     .flatten({ background: "#ffffff" })
-    .jpeg({ quality: copyQuality(width), mozjpeg: true })
+    .jpeg({ quality: copyQuality(width), mozjpeg: true, chromaSubsampling: fullColour(width) ? "4:4:4" : "4:2:0" })
     .toBuffer();
   if (meta.width <= width && body.length >= original.length * 0.75) return none();
   await writeStored(copy.storageKey, body, "image/jpeg");
@@ -297,8 +300,9 @@ export async function deleteStoredWithCopies(key: string) {
   await deleteStored(key).catch(() => {});
   for (const w of IMAGE_WIDTHS) {
     await deleteStored(copyKey(w, key)).catch(() => {});
-    // Copies made before the quality was part of the name.
+    // Copies made under earlier settings.
     await deleteStored(`derived/w${w}/${key}.jpg`).catch(() => {});
+    await deleteStored(`derived/w${w}-q${copyQuality(w)}/${key}.jpg`).catch(() => {});
   }
 }
 
