@@ -17,7 +17,8 @@ import { FILE_KINDS, type FileKind } from "@/lib/file-kinds";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { drawingShownToClient, notifyClient, type UpdateSection } from "@/lib/client-updates";
 import { loadShare, shareCookieName, shareCookieValue } from "@/lib/share";
-import { deleteStored, deleteStoredWithCopies, storedSize, uploadTarget } from "@/lib/storage";
+import { deleteStored, deleteStoredWithCopies, prepareImageCopies, storedSize, uploadTarget } from "@/lib/storage";
+import { after } from "next/server";
 import type { FormState } from "./actions";
 
 const uuid = z.string().uuid();
@@ -302,6 +303,8 @@ export async function addScene(input: { projectId: string; tourId: string; fileI
     .insert(s.tourScenes)
     .values({ tourId: tour.id, title, fileId: file.id, position: (last ?? -1) + 1 })
     .returning({ id: s.tourScenes.id });
+  // Quick-look, phone and computer copies, made now so the tour opens fast.
+  after(() => prepareImageCopies(file));
   await tellClient(project.id, { kind: "tour", title: `New in the 360° tour ${tour.title}`, href: `360#t-${tour.id}`, section: "tours" });
   refresh(project.id);
   return { id: scene.id };
@@ -635,6 +638,7 @@ export async function addDrawingPanorama(input: { projectId: string; drawingId: 
     const [tour] = await db.insert(s.tours).values({ projectId: project.id, title, createdBy: user.id }).returning({ id: s.tours.id });
     await db.insert(s.tourScenes).values({ tourId: tour.id, title: fromName.charAt(0).toUpperCase() + fromName.slice(1) || title, fileId: file.id, position: 0 });
     await db.insert(s.drawingTours).values({ drawingId: drawing.id, tourId: tour.id });
+    after(() => prepareImageCopies(file));
     await audit(user, "create", "tour", tour.id, { drawingId: drawing.id });
     await tellClient(project.id, { kind: "tour", title: `New 360° view on ${drawing.title}`, href: `drawings?d=${drawing.id}&v=tour`, section: "drawings", drawingId: drawing.id });
     refresh(project.id);

@@ -5,14 +5,13 @@ const PRESETS: Partial<Record<FileKind, { maxSide: number; quality: number }>> =
   photo: { maxSide: 2400, quality: 0.85 },
   receipt: { maxSide: 2400, quality: 0.85 },
   render: { maxSide: 3840, quality: 0.9 },
-  panorama: { maxSide: 8192, quality: 0.88 },
   drawing: { maxSide: 6000, quality: 0.92 },
   cover: { maxSide: 1600, quality: 0.88 },
 };
 
 /**
  * Browser-only: compresses an image before it is uploaded, keeping it sharp
- * for its use (4K for renders, 8K for 360° photos, 2400 px for site photos).
+ * for its use (4K for renders, 2400 px for site photos).
  * Transparent areas become white. The original is kept when it is not an
  * image the browser can read, or when compressing would not make it smaller.
  */
@@ -54,11 +53,14 @@ export async function compressImage(file: File, kind: FileKind): Promise<File> {
   return new File([blob], name, { type: "image/jpeg", lastModified: file.lastModified });
 }
 
-/** Shrinks an upload before it is sent: images by kind, receipt PDFs too. Drawings are left untouched. */
+/** Shrinks an upload before it is sent: images by kind, receipt PDFs too. Drawings and 360° photos are left untouched. */
 export async function compressUpload(file: File, kind: FileKind): Promise<File> {
   // Drawings are printed from the file clients download: keep them exactly as
   // uploaded, byte for byte. Any re-encoding softens linework and scans.
   if (kind === "drawing") return file;
+  // 360° photos too: the original is kept at full quality, and the server
+  // makes the smaller copies that phones and quick previews load.
+  if (kind === "panorama") return file;
   if (kind === "receipt") {
     const { compressPdf } = await import("./shrink-pdf");
     const pdf = await compressPdf(file);

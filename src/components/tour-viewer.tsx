@@ -24,9 +24,17 @@ function panoramaWidth(): 2048 | 4096 | 8192 {
   return wanted >= 8192 ? 8192 : wanted >= 4096 ? 4096 : 2048;
 }
 
+/** A small copy of each 360° photo, shown at once while the sharp one loads. */
+const PREVIEW_WIDTH = 1024;
+
 /**
  * Walks through a 360° tour: drag to look around, click an arrow to move to
  * the next room. `fileUrl` turns a file id into a URL the viewer may load.
+ *
+ * Each room opens from a small preview (about a tenth of the download), then
+ * the full-quality photo replaces it in place, where you are looking. While
+ * you look around, the previews of the rooms you can walk to are fetched, so
+ * the next step opens straight away.
  */
 export function TourViewer({
   tour,
@@ -55,9 +63,11 @@ export function TourViewer({
       ]);
       if (!alive) return;
       const width = panoramaWidth();
+      const full = new Map(tour.scenes.map((scene) => [scene.id, `${fileBase}${scene.fileId}?w=${width}`]));
+      const preview = (fileId: string) => `${fileBase}${fileId}?w=${PREVIEW_WIDTH}`;
       const nodes = tour.scenes.map((scene) => ({
         id: scene.id,
-        panorama: `${fileBase}${scene.fileId}?w=${width}`,
+        panorama: preview(scene.fileId),
         name: scene.title,
         caption: scene.title,
         links: tour.hotspots
@@ -79,6 +89,24 @@ export function TourViewer({
           ],
         });
         viewer.addEventListener("panorama-error", () => setFailed(true));
+        const v = viewer;
+        const tourPlugin = v.getPlugin<InstanceType<typeof VirtualTourPlugin>>(VirtualTourPlugin);
+        tourPlugin.addEventListener("node-changed", ({ node }) => {
+          const sharp = full.get(node.id);
+          if (!sharp || !alive) return;
+          // No position or zoom: the camera stays where it is, even mid-drag.
+          v.setPanorama(sharp, { caption: node.caption, transition: false, showLoader: false })
+            .then(() => {
+              // Ready the rooms you can walk to from here.
+              if (!alive) return;
+              for (const link of node.links ?? []) {
+                const next = tour.scenes.find((sc) => sc.id === link.nodeId);
+                if (next) v.textureLoader.preloadPanorama(preview(next.fileId)).catch(() => {});
+              }
+            })
+            // Walked on before it loaded: the next room takes over.
+            .catch(() => {});
+        });
       } catch {
         setFailed(true);
       }

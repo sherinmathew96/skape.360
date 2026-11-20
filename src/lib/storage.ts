@@ -130,8 +130,17 @@ async function writeStored(key: string, body: Buffer, contentType: string) {
   await client.send(new mod.PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
 }
 
-/** The widths an image may be asked for, so only a few copies are ever made. */
-export const IMAGE_WIDTHS = [2048, 4096, 8192] as const;
+/** The widths an image may be asked for, so only a few copies are ever made. 1024 is a quick first look at a 360° photo. */
+export const IMAGE_WIDTHS = [1024, 2048, 4096, 8192] as const;
+
+/**
+ * JPEG quality of each copy. Full-size views (4096 and up) are near-lossless;
+ * small ones are only seen for a moment or at thumbnail size.
+ */
+const copyQuality = (width: number) => (width >= 4096 ? 92 : 80);
+
+/** Where a copy is kept. The quality is in the name, so raising it makes fresh copies. */
+const copyKey = (width: number, storageKey: string) => `derived/w${width}-q${copyQuality(width)}/${storageKey}.jpg`;
 
 /** `?w=4096` on a file link, when it is one of the allowed widths. */
 export function requestedWidth(req: Request): number | undefined {
@@ -139,30 +148,69 @@ export function requestedWidth(req: Request): number | undefined {
   return (IMAGE_WIDTHS as readonly number[]).includes(w) ? w : undefined;
 }
 
+type StoredImage = { storageKey: string; name: string; contentType: string };
+
+const copyOf = (file: StoredImage, width: number) => ({
+  storageKey: copyKey(width, file.storageKey),
+  name: file.name.replace(/\.[^.]+$/, "") + `-${width}.jpg`,
+  contentType: "image/jpeg",
+});
+
+/** Makes the copy of an image at one width, or records that none is needed. */
+async function makeCopy(original: Buffer, file: StoredImage, width: number) {
+  const sharp = (await import("sharp")).default;
+  const copy = copyOf(file, width);
+  const none = async () => {
+    // Remember that this one needs no copy, so it isn't decoded again.
+    await writeStored(copy.storageKey, Buffer.alloc(0), "image/jpeg");
+    return null;
+  };
+  const image = sharp(original, { limitInputPixels: 30000 * 15000 });
+  const meta = await image.metadata();
+  // A lean JPEG already this narrow is served as it is. A PNG, a WebP or a
+  // heavy JPEG (saved at 95–100%) this narrow still gets a copy, if that
+  // comes out clearly smaller: at 92% it looks the same and loads faster.
+  const lean = file.contentType === "image/jpeg" && original.length <= meta.width * (meta.height ?? meta.width / 2) * 0.3;
+  if (!meta.width || (meta.width <= width && lean)) return none();
+  const body = await image
+    .rotate()
+    .resize({ width, withoutEnlargement: true })
+    .flatten({ background: "#ffffff" })
+    .jpeg({ quality: copyQuality(width), mozjpeg: true })
+    .toBuffer();
+  if (meta.width <= width && body.length >= original.length * 0.75) return none();
+  await writeStored(copy.storageKey, body, "image/jpeg");
+  return { ...copy, size: body.length };
+}
+
 /**
  * A copy of a large image no wider than `width`, made once and kept beside
  * the original. Phones can't open very large 360° photos: they run out of
  * memory, or the picture is wider than the graphics chip can show. Returns
- * null when the original is already small enough.
+ * null when the original is already right as it is.
  */
-async function fittedImage(file: { storageKey: string; name: string; contentType: string; id?: string }, width: number) {
-  const key = `derived/w${width}/${file.storageKey}.jpg`;
-  const copy = { storageKey: key, name: file.name.replace(/\.[^.]+$/, "") + `-${width}.jpg`, contentType: "image/jpeg" };
-  const known = await storedSize(key);
+async function fittedImage(file: StoredImage, width: number) {
+  const copy = copyOf(file, width);
+  const known = await storedSize(copy.storageKey);
   if (known !== null) return known > 0 ? { ...copy, size: known } : null;
+  return makeCopy(await readStored(file.storageKey), file, width);
+}
 
-  const sharp = (await import("sharp")).default;
-  const original = await readStored(file.storageKey);
-  const image = sharp(original, { limitInputPixels: 30000 * 15000 });
-  const meta = await image.metadata();
-  if (!meta.width || meta.width <= width) {
-    // Remember that this one needs no copy, so it isn't decoded again.
-    await writeStored(key, Buffer.alloc(0), "image/jpeg");
-    return null;
+/**
+ * Makes a 360° photo's copies (quick look, phone, computer) right after it is
+ * uploaded, so the first person to open it doesn't wait for them. The original
+ * is read once. Failures are only logged: the copies are then made on demand.
+ */
+export async function prepareImageCopies(file: StoredImage, widths: readonly number[] = [1024, 4096, 8192]) {
+  try {
+    const todo: number[] = [];
+    for (const w of widths) if ((await storedSize(copyOf(file, w).storageKey)) === null) todo.push(w);
+    if (!todo.length) return;
+    const original = await readStored(file.storageKey);
+    for (const w of todo) await makeCopy(original, file, w);
+  } catch (err) {
+    console.warn("[skape360] could not prepare image copies:", err instanceof Error ? err.message : err);
   }
-  const body = await image.rotate().resize({ width, withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
-  await writeStored(key, body, "image/jpeg");
-  return { ...copy, size: body.length };
 }
 
 /**
@@ -247,7 +295,11 @@ export async function listStoredObjects(): Promise<{ key: string; size: number }
 /** Removes a file and any smaller copies made of it (see fittedImage). Missing ones are fine. */
 export async function deleteStoredWithCopies(key: string) {
   await deleteStored(key).catch(() => {});
-  for (const w of IMAGE_WIDTHS) await deleteStored(`derived/w${w}/${key}.jpg`).catch(() => {});
+  for (const w of IMAGE_WIDTHS) {
+    await deleteStored(copyKey(w, key)).catch(() => {});
+    // Copies made before the quality was part of the name.
+    await deleteStored(`derived/w${w}/${key}.jpg`).catch(() => {});
+  }
 }
 
 export async function deleteStored(key: string) {
